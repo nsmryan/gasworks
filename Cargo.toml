@@ -1,0 +1,6 @@
+[package]
+name = "packet-tool"
+version = "0.1.0"
+authors = ["nsmryan <nsmryan@gmail.com>"]
+
+[dependencies]

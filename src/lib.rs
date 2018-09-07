@@ -14,22 +14,22 @@ mod types;
 use types::*;
 
 
-//fn decode(layout : Layout, bytes : Bytes) -> ValueMap {
-//    let mut map = HashMap::new();
-//
-//    let _ = decode_at(&layout, &bytes, 0, &mut map);
-//
-//    map
-//}
+fn decode(layout : Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
+    let mut map = HashMap::new();
 
-fn decode_prim(prim : Prim, bytes : &mut Cursor<&[u8]>, loc : Loc) -> Value {
+    let _ = decode_at(&layout, bytes, &mut map);
+
+    map
+}
+
+fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
     match prim {
         Prim::Int(int_prim) => {
             decode_int(int_prim, bytes)
         },
 
-        Prim::Float(floatType) => {
-            match floatType {
+        Prim::Float(float_type) => {
+            match float_type {
                 FloatPrim::F32(endianness) => {
                     match endianness {
                         Endianness::BigEndian    => Value::F32(bytes.get_f32_be()),
@@ -71,7 +71,7 @@ fn decode_prim(prim : Prim, bytes : &mut Cursor<&[u8]>, loc : Loc) -> Value {
     }
 }
 
-fn decode_int(int_prim : IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
+fn decode_int(int_prim : &IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
     let IntPrim{size, signedness, endianness} = int_prim;
 
     match endianness {
@@ -102,9 +102,9 @@ fn decode_int(int_prim : IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
                 Signedness::Unsigned => {
                     match size {
                         IntSize::Bits8  => Value::U8(bytes.get_u8()),
-                        IntSize::Bits16 => Value::U16(bytes.get_u16_be()),
-                        IntSize::Bits32 => Value::U32(bytes.get_u32_be()),
-                        IntSize::Bits64 => Value::U64(bytes.get_u64_be()),
+                        IntSize::Bits16 => Value::U16(bytes.get_u16_le()),
+                        IntSize::Bits32 => Value::U32(bytes.get_u32_le()),
+                        IntSize::Bits64 => Value::U64(bytes.get_u64_le()),
                     }
                 },
 
@@ -121,36 +121,40 @@ fn decode_int(int_prim : IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
     }
 }
 
-// NOTE add decode_at back in, resulting in a HashMap<Name, Value>
-//fn decode_at(layout : &Layout, bytes : Bytes, loc : Loc, map : &mut ValueMap) -> Value {
-//    use types::Layout::*;
-//    match layout {
-//        Prim(prim) => {
-//            decode_prim(prim, bytes, loc)
-//        },
-//
-//        Seq(layouts) => {
-//            let mut loc = loc;
-//            for layout in layouts.iter() {
-//                let new_loc = decode_at(layout, bytes, loc, map);
-//                loc = new_loc;
-//            }
-//
-//            loc
-//        },
-//
-//        All(layouts) => {
-//            let mut max_loc = loc;
-//            for layout in layouts.iter() {
-//                let new_loc = decode_at(layout, bytes, loc, map);
-//                if new_loc > max_loc {
-//                    max_loc = new_loc;
-//                }
-//            }
-//
-//            max_loc
-//        },
-//    }
-//}
+fn decode_at(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) {
+    
+    match layout {
+        Layout::Prim(prim) => {
+            let value = decode_prim(prim, bytes);
+            map.insert("PLACEHOLDER".to_string(), value);
+        },
+
+        Layout::Seq(layouts) => {
+            for layout in layouts.iter() {
+                decode_at(layout, bytes, map);
+            }
+        },
+
+        Layout::All(layouts) => {
+            let mut max_loc = bytes.position();
+            let starting_loc = bytes.position();
+
+            for layout in layouts.iter() {
+                // jump back to the start and decode next layout
+                bytes.set_position(starting_loc);
+                decode_at(layout, bytes, map);
+
+                // check if this layout is the largest so far
+                let new_loc = bytes.position();
+                if new_loc > max_loc {
+                    max_loc = new_loc;
+                }
+            }
+
+            // jump forward past the largest layout
+            bytes.set_position(max_loc);
+        },
+    }
+}
 
 

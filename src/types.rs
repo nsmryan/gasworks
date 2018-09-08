@@ -60,8 +60,8 @@ impl IntPrim {
 // currently limited to 8/16/32/64 fields
 #[derive(Eq, PartialEq, Debug, Hash)]
 pub struct BitPrim {
-    pub entries : Vec<(Name, IntPrim)>,
-    pub bytes : IntSize,
+    pub entries : Vec<(Name, u32, IntPrim)>,
+    pub num_bytes : IntSize,
 }
 
 #[derive(Eq, PartialEq, Debug, Hash)]
@@ -75,7 +75,6 @@ pub enum Prim {
     Int(IntPrim),
     Float(FloatPrim),
     //Bytes(usize),
-    Bits(BitPrim),
     Enum(Enum),
 }
 
@@ -91,7 +90,7 @@ pub enum Layout {
     Seq(Vec<Layout>),
     All(Vec<Layout>),
     // maybe Placement(u64, Layout)
-    // maybe bits goes here instead Bits(BitPrim),
+    Bits(BitPrim),
 }
 
 #[derive(Eq, PartialEq, Debug)]

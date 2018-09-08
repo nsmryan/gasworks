@@ -1,6 +1,7 @@
 
 use std::collections::HashSet;
 use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 extern crate bytes;
 use bytes::{Bytes, Buf};
@@ -10,19 +11,19 @@ use byteorder::{LittleEndian, BigEndian, ByteOrder};
 
 use std::io::{Cursor, Read};
 
-mod types;
+pub mod types;
 use types::*;
 
 
-fn decode(layout : Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
+pub fn decode(layout : Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
     let mut map = HashMap::new();
 
-    let _ = decode_at(&layout, bytes, &mut map);
+    let _ = decode_layout(&layout, bytes, &mut map);
 
     map
 }
 
-fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
+pub fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
     match prim {
         Prim::Int(int_prim) => {
             decode_int(int_prim, bytes)
@@ -55,8 +56,15 @@ fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
         //    Value::Bytes(buf.as_slice())
         //},
 
-        Prim::Bits(num_bytes) => {
-            unimplemented!()
+        Prim::Bits(BitPrim{entries, bytes}) => {
+            unimplemented!();
+
+            //let &slice = bytes.something(bytes.num_bytes());
+            //let reader = BitReader::new(slice);
+            //for let (name, int_prim) in entries.iter() {
+                //let int_value = decode_int(int_prim, bytes);
+                // match on bytes and emit Value of correct size/sign
+            //}
         },
 
         Prim::Enum(Enum{map, int_prim}) => {
@@ -71,7 +79,7 @@ fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
     }
 }
 
-fn decode_int(int_prim : &IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
+pub fn decode_int(int_prim : &IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
     let IntPrim{size, signedness, endianness} = int_prim;
 
     match endianness {
@@ -121,7 +129,7 @@ fn decode_int(int_prim : &IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
     }
 }
 
-fn decode_at(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) {
+fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) {
     
     match layout {
         Layout::Prim(item) => {
@@ -131,7 +139,7 @@ fn decode_at(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) 
 
         Layout::Seq(layouts) => {
             for layout in layouts.iter() {
-                decode_at(layout, bytes, map);
+                decode_layout(layout, bytes, map);
             }
         },
 
@@ -142,7 +150,7 @@ fn decode_at(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) 
             for layout in layouts.iter() {
                 // jump back to the start and decode next layout
                 bytes.set_position(starting_loc);
-                decode_at(layout, bytes, map);
+                decode_layout(layout, bytes, map);
 
                 // check if this layout is the largest so far
                 let new_loc = bytes.position();
@@ -157,4 +165,110 @@ fn decode_at(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) 
     }
 }
 
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_decode_prim() {
+      let byte_prim = Prim::Int(IntPrim::new(IntSize::Bits8, Signedness::Unsigned, Endianness::BigEndian));
+
+      let float32_be = Prim::Float(FloatPrim::F32(Endianness::BigEndian));
+      let float64_be = Prim::Float(FloatPrim::F64(Endianness::BigEndian));
+
+      let float32_le = Prim::Float(FloatPrim::F32(Endianness::LittleEndian));
+      let float64_le = Prim::Float(FloatPrim::F64(Endianness::LittleEndian));
+
+      //let bits_prim = Prim::Bits();
+
+      let mut enum_map = BTreeMap::new();
+      enum_map.insert(0, "Zero".to_string());
+      enum_map.insert(1, "One".to_string());
+      enum_map.insert(2, "Two".to_string());
+      enum_map.insert(5, "Five".to_string());
+      let enum_prim = IntPrim::new(IntSize::Bits32, Signedness::Unsigned, Endianness::BigEndian);
+      let enum_prim = Prim::Enum(Enum{map : enum_map, int_prim : enum_prim});
+
+      let v = vec![0xAA,
+                  0x3D, 0xCC, 0xCC, 0xCD,
+                  0x3F, 0xC9, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9A,
+                  0xCD, 0xCC, 0xCC, 0x3D,
+                  0x9A, 0x99, 0x99, 0x99, 0x99, 0x99, 0xC9, 0x3F,
+                  0x00, 0x00, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x01,
+                  0x00, 0x00, 0x00, 0x02,
+                  0x00, 0x00, 0x00, 0x05
+                  ];
+      let mut bytes = Cursor::new(v.as_slice());
+      let byte_value = decode_prim(&byte_prim, &mut bytes);
+
+      let float32_value_be = decode_prim(&float32_be, &mut bytes);
+      let float64_value_be = decode_prim(&float64_be, &mut bytes);
+
+      let float32_value_le = decode_prim(&float32_le, &mut bytes);
+      let float64_value_le = decode_prim(&float64_le, &mut bytes);
+
+      let enum_value_zero = decode_prim(&enum_prim, &mut bytes);
+      let enum_value_one = decode_prim(&enum_prim, &mut bytes);
+      let enum_value_two = decode_prim(&enum_prim, &mut bytes);
+      let enum_value_five = decode_prim(&enum_prim, &mut bytes);
+
+      assert!(byte_value == Value::U8(0xAA));
+
+      assert!(float32_value_be == Value::F32(0.1));
+      assert!(float64_value_be == Value::F64(0.2));
+
+      assert!(float32_value_le == Value::F32(0.1));
+      assert!(float64_value_le == Value::F64(0.2));
+
+      assert!(enum_value_zero == Value::Enum("Zero".to_string(), 0));
+      assert!(enum_value_one  == Value::Enum("One".to_string(),  1));
+      assert!(enum_value_two  == Value::Enum("Two".to_string(),  2));
+      assert!(enum_value_five == Value::Enum("Five".to_string(), 5));
+    }
+
+    #[test]
+    fn test_decode_int() {
+      let byte_prim = IntPrim::new(IntSize::Bits8, Signedness::Unsigned, Endianness::BigEndian);
+
+      let short_prim_be = IntPrim::new(IntSize::Bits16, Signedness::Unsigned, Endianness::BigEndian);
+      let short_prim_le = IntPrim::new(IntSize::Bits16, Signedness::Unsigned, Endianness::LittleEndian);
+
+      let int_prim_be = IntPrim::new(IntSize::Bits32, Signedness::Unsigned, Endianness::BigEndian);
+      let int_prim_le = IntPrim::new(IntSize::Bits32, Signedness::Unsigned, Endianness::LittleEndian);
+
+      let long_prim_be = IntPrim::new(IntSize::Bits64, Signedness::Unsigned, Endianness::BigEndian);
+      let long_prim_le = IntPrim::new(IntSize::Bits64, Signedness::Unsigned, Endianness::LittleEndian);
+
+      let v = vec![0xAA,
+                   0x11, 0x22,
+                   0x33, 0x44,
+                   0x11, 0x22, 0x33, 0x44,
+                   0x44, 0x33, 0x22, 0x11,
+                   0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+                   0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11
+                  ];
+      let mut bytes = Cursor::new(v.as_slice());
+      let byte = decode_int(&byte_prim, &mut bytes);
+      let short_be = decode_int(&short_prim_be, &mut bytes);
+      let short_le = decode_int(&short_prim_le, &mut bytes);
+
+      let int_be = decode_int(&int_prim_be, &mut bytes);
+      let int_le = decode_int(&int_prim_le, &mut bytes);
+
+      let long_be = decode_int(&long_prim_be, &mut bytes);
+      let long_le = decode_int(&long_prim_le, &mut bytes);
+
+      assert!(byte == Value::U8(0xAA));
+
+      assert!(short_be == Value::U16(0x1122));
+      assert!(short_le == Value::U16(0x4433));
+
+      assert!(int_be == Value::U32(0x11223344));
+      assert!(int_le == Value::U32(0x11223344));
+
+      assert!(long_be == Value::U64(0x1122334455667788));
+      assert!(long_le == Value::U64(0x1122334455667788));
+    }
+}
 

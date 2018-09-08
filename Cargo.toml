@@ -3,7 +3,14 @@ name = "packet-tool"
 version = "0.1.0"
 authors = ["nsmryan <nsmryan@gmail.com>"]
 
+[lib]
+name="packet_tool"
+path="src/lib.rs"
+test=true
+doc=true
+
 [dependencies]
 byteorder="1.2.6"
 bytes="0.4.10"
 bit_reverse="0.1.7"
+bitreader="0.3.1"

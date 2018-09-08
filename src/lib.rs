@@ -124,9 +124,9 @@ fn decode_int(int_prim : &IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
 fn decode_at(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) {
     
     match layout {
-        Layout::Prim(prim) => {
-            let value = decode_prim(prim, bytes);
-            map.insert("PLACEHOLDER".to_string(), value);
+        Layout::Prim(item) => {
+            let value = decode_prim(&item.typ, bytes);
+            map.insert(item.name.to_string(), value);
         },
 
         Layout::Seq(layouts) => {

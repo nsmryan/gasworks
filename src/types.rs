@@ -58,7 +58,7 @@ pub struct Item {
 }
 
 pub enum Layout {
-    Prim(Prim),
+    Prim(Item),
     Seq(Vec<Layout>),
     All(Vec<Layout>),
     // maybe Placement(u64, Layout)

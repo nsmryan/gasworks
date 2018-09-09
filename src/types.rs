@@ -177,6 +177,38 @@ pub enum Layout {
     Bits(BitPrim),
 }
 
+impl Layout {
+  pub fn names(&self) -> HashSet<&Name> {
+    let mut names : HashSet<&Name> = HashSet::new();
+
+    match self {
+      Layout::Prim(Item{name : name, typ : _}) => {
+        names.insert(name);
+      }
+
+      Layout::Seq(layouts) => {
+        for layout in layouts.iter() {
+          names.extend(layout.names());
+        }
+      },
+
+      Layout::All(layouts) => {
+        for layout in layouts.iter() {
+          names.extend(layout.names());
+        }
+      },
+
+      Layout::Bits(bit_prims) => {
+        for bit_prim in bit_prims.entries.iter() {
+          names.insert(&bit_prim.0);
+        }
+      },
+    }
+
+    names
+  }
+}
+
 #[derive(Eq, PartialEq, Debug)]
 pub enum Packet {
     Seq(Vec<Packet>),

@@ -49,10 +49,13 @@ main!(|args: Cli, log_level : verbosity| {
             File::open(args.infile).unwrap().read_to_end(&mut byte_vec);
             let mut bytes = Cursor::new(byte_vec.as_slice());
 
-            let map = decode(&layout, &mut bytes);
+            valuemap_csvheader(&layout, &mut writer);
 
-            valuemap_csvheader(&map, &mut writer);
-            valuemap_csv(&map, &mut writer);
+            // NOTE assumes correctly formatted file!
+            while bytes.position() != byte_vec.len() as u64 {
+                let map = decode(&layout, &mut bytes);
+                valuemap_csv(&map, &mut writer);
+            }
 
             println!("{}", to_string_pretty(&layout, Default::default()).expect("couldn't serialize layout!"));
         },

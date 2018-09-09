@@ -21,9 +21,10 @@ pub fn valuemap_csv(map : &ValueMap,
     writer.write_record(map.values().map(|value| {value.to_string()}));
 }
 
-pub fn valuemap_csvheader(map : &ValueMap,
+pub fn valuemap_csvheader(layout : &Layout,
                          writer : &mut csv::Writer<File>)
 {
-    writer.write_record(map.keys().map(|value| {value.to_string()}));
+    writer.write_record(layout.names().iter());
+    //writer.write_record(map.keys().map(|value| {value.to_string()}));
 }
 

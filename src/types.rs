@@ -11,6 +11,9 @@ extern crate bytes;
 #[allow(unused_imports)]
 use self::bytes::{Bytes, Buf};
 
+trait NumBytes {
+  fn num_bytes(&self) -> u64;
+}
 
 pub type Name = String;
 
@@ -30,9 +33,9 @@ pub enum IntSize {
     Bits64,
 }
 
-impl IntSize {
-  pub fn num_bytes(int_size : &IntSize) -> u64 {
-    match int_size {
+impl NumBytes for IntSize {
+  fn num_bytes(&self) -> u64 {
+    match self {
       IntSize::Bits8  => 1,
       IntSize::Bits16 => 2,
       IntSize::Bits32 => 4,
@@ -53,11 +56,26 @@ pub enum FloatPrim {
     F64(Endianness),
 }
 
+impl NumBytes for FloatPrim {
+  fn num_bytes(&self) -> u64 {
+    match self {
+      FloatPrim::F32(_) => 4,
+      FloatPrim::F64(_) => 8,
+    }
+  }
+}
+
 #[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub struct IntPrim {
     pub size : IntSize,
     pub signedness : Signedness,
     pub endianness : Endianness,
+}
+
+impl NumBytes for IntPrim {
+  fn num_bytes(&self) -> u64 {
+    self.size.num_bytes()
+  }
 }
 
 impl IntPrim {
@@ -141,13 +159,26 @@ impl IntPrim {
 #[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub struct BitPrim {
     pub entries : Vec<(Name, u32, IntPrim)>,
+    // NOTE rename to size or int_prim
     pub num_bytes : IntSize,
+}
+
+impl NumBytes for BitPrim {
+  fn num_bytes(&self) -> u64 {
+    self.num_bytes.num_bytes()
+  }
 }
 
 #[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub struct Enum {
     pub map : BTreeMap<i64, Name>,
     pub int_prim : IntPrim,
+}
+
+impl NumBytes for Enum {
+  fn num_bytes(&self) -> u64 {
+    self.int_prim.num_bytes()
+  }
 }
 
 #[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
@@ -158,10 +189,26 @@ pub enum Prim {
     Enum(Enum),
 }
 
+impl NumBytes for Prim {
+  fn num_bytes(&self) -> u64 {
+    match self {
+      Prim::Int(int_prim)     => int_prim.num_bytes(),
+      Prim::Float(float_prim) => float_prim.num_bytes(),
+      Prim::Enum(enum_prim)   => enum_prim.num_bytes(),
+    }
+  }
+}
+
 #[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub struct Item {
     pub name : Name,
     pub typ : Prim,
+}
+
+impl NumBytes for Item {
+  fn num_bytes(&self) -> u64 {
+    self.typ.num_bytes()
+  }
 }
 
 impl Item {
@@ -177,9 +224,15 @@ struct LocItem {
   pub loc : Loc,
 }
 
+impl NumBytes for LocItem {
+  fn num_bytes(&self) -> u64 {
+    self.typ.num_bytes()
+  }
+}
+
 impl LocItem {
   pub fn new(name : Name, typ : Prim, loc : Loc) -> LocItem {
-    LocItem{ name : Name, typ : Prim, loc : Loc }
+    LocItem{ name : name, typ : typ, loc : loc }
   }
 }
 
@@ -190,6 +243,37 @@ pub enum Layout {
     All(Vec<Layout>),
     // maybe Placement(u64, Layout)
     Bits(BitPrim),
+}
+
+impl NumBytes for Layout {
+  fn num_bytes(&self) -> u64 {
+    match self {
+      Layout::Prim(item) => {
+        item.num_bytes()
+      }
+
+      Layout::Seq(layouts) => {
+        let mut num_bytes = 0;
+        // NOTE could use a fold here
+        for layout in layouts.iter() {
+          num_bytes += layout.num_bytes();
+        }
+        num_bytes
+      },
+
+      Layout::All(layouts) => {
+        let mut num_bytes = 0;
+        for layout in layouts.iter() {
+          num_bytes = std::cmp::max(num_bytes, layout.num_bytes())
+        }
+        num_bytes
+      },
+
+      Layout::Bits(bit_prim) => {
+        bit_prim.num_bytes()
+      },
+    }
+  }
 }
 
 impl Layout {
@@ -226,14 +310,16 @@ impl Layout {
   pub fn locate(&self) -> Vec<LocItem> {
     let mut loc = 0;
     let mut loc_items = Vec::new();
-    locate_loc(self, &loc_items, &loc)
+    locate_loc(self, &loc_items, &loc);
+
+    loc_items
   }
 
-  fn locate_loc(&self, loc_items : &mut Vec<LocItem>, loc : &mut Loc) -> Vec<LocItem> {
-    match layout {
+  fn locate_loc(&self, loc_items : &mut Vec<LocItem>, loc : &mut Loc) {
+    match self {
         Layout::Prim(item) => {
-            loc_items.push(LocItem::new(item.name.to_string(), value, *loc));
-            loc += item.typ.num_bytes();
+            loc_items.push(LocItem::new(item.name.to_string(), item.typ, *loc));
+            *loc += item.typ.num_bytes();
         },
 
         Layout::Seq(layouts) => {
@@ -257,11 +343,9 @@ impl Layout {
                 }
             }
 
-            loc = max_loc;
+            *loc = max_loc;
         },
         
-        // NOTE - Bit fields currently do not support endianness choice
-        //        bitreverse crate could help with this.
         Layout::Bits(bits) => {
           // NOTE implement Bits into LocItems
           unimplemented!();
@@ -284,8 +368,6 @@ pub enum Protocol {
     Layout(Layout),
     Packet(Packet),
 }
-
-pub type Loc = usize;
 
 pub type LayoutMap = HashMap<Name, (Loc, Prim)>;
 

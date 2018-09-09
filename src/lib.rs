@@ -20,6 +20,9 @@ use std::io::{Cursor, Read};
 pub mod types;
 use types::*;
 
+pub mod csv;
+use csv::*;
+
 
 pub fn decode(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
     let mut map = HashMap::new();

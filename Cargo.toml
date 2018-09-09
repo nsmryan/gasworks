@@ -15,6 +15,7 @@ bytes="0.4.10"
 bit_reverse="0.1.7"
 bitreader="0.3.1"
 quicli="0.3.0"
+csv="1.0.1"
 
 [[bin]]
 name="packet-tool"

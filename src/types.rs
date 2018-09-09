@@ -1,9 +1,14 @@
+#[allow(unused_imports)]
 use std::collections::HashSet;
+#[allow(unused_imports)]
 use std::collections::HashMap;
+#[allow(unused_imports)]
 use std::collections::BTreeMap;
 
 //extern crate bitreader;
 //use bitreader::BitReader;
+
+use std::fmt;
 
 extern crate bytes;
 #[allow(unused_imports)]
@@ -208,6 +213,24 @@ pub enum Value {
     F64(f64),
     //Bytes(&[u8]),
     Enum(Name, i64),
+}
+
+impl fmt::Display for Value {
+  fn fmt(&self, f : &mut fmt::Formatter) -> fmt::Result {
+    match self {
+      Value::U8(value)         => write!(f, "{}", value),
+      Value::U16(value)        => write!(f, "{}", value),
+      Value::U32(value)        => write!(f, "{}", value),
+      Value::U64(value)        => write!(f, "{}", value),
+      Value::I8(value)         => write!(f, "{}", value),
+      Value::I16(value)        => write!(f, "{}", value),
+      Value::I32(value)        => write!(f, "{}", value),
+      Value::I64(value)        => write!(f, "{}", value),
+      Value::F32(value)        => write!(f, "{}", value),
+      Value::F64(value)        => write!(f, "{}", value),
+      Value::Enum(name, value) => write!(f, "{}", value),
+    }
+  }
 }
 
 #[derive(PartialEq, PartialOrd, Debug)]

@@ -1,6 +1,9 @@
 
+#[allow(unused_imports)]
 use std::collections::HashSet;
+#[allow(unused_imports)]
 use std::collections::HashMap;
+#[allow(unused_imports)]
 use std::collections::BTreeMap;
 
 extern crate bitreader;

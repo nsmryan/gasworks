@@ -32,7 +32,7 @@ pub mod csv;
 use csv::*;
 
 
-pub fn decode(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
+pub fn decode_to_map(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
     let mut map = HashMap::new();
 
     let _ = decode_layout(layout, bytes, &mut map);
@@ -262,7 +262,7 @@ mod test {
 
       let layout = Layout::Seq(vec![bits_layout, all_layout , prim_layout]);
 
-      let value_map = decode(&layout, &mut bytes);
+      let value_map = decode_to_map(&layout, &mut bytes);
 
       let value_bits0 = value_map.get(&"bits0".to_string()).unwrap();
       assert!(*value_bits0 == Value::U8(0x01));

@@ -53,7 +53,7 @@ main!(|args: Cli, log_level : verbosity| {
 
             // NOTE assumes correctly formatted file!
             while bytes.position() < byte_vec.len() as u64 {
-                let map = decode(&layout, &mut bytes);
+                let map = decode_to_map(&layout, &mut bytes);
                 valuemap_csv(&map, &mut writer);
             }
 

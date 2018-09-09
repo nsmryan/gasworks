@@ -14,6 +14,8 @@ use self::bytes::{Bytes, Buf};
 
 pub type Name = String;
 
+pub type Loc = u64;
+
 #[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub enum Endianness {
     BigEndian,
@@ -168,6 +170,19 @@ impl Item {
   }
 }
 
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+struct LocItem {
+  pub name : Name,
+  pub typ : Prim,
+  pub loc : Loc,
+}
+
+impl LocItem {
+  pub fn new(name : Name, typ : Prim, loc : Loc) -> LocItem {
+    LocItem{ name : Name, typ : Prim, loc : Loc }
+  }
+}
+
 #[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub enum Layout {
     Prim(Item),
@@ -206,6 +221,52 @@ impl Layout {
     }
 
     names
+  }
+
+  pub fn locate(&self) -> Vec<LocItem> {
+    let mut loc = 0;
+    let mut loc_items = Vec::new();
+    locate_loc(self, &loc_items, &loc)
+  }
+
+  fn locate_loc(&self, loc_items : &mut Vec<LocItem>, loc : &mut Loc) -> Vec<LocItem> {
+    match layout {
+        Layout::Prim(item) => {
+            loc_items.push(LocItem::new(item.name.to_string(), value, *loc));
+            loc += item.typ.num_bytes();
+        },
+
+        Layout::Seq(layouts) => {
+            for layout in layouts.iter() {
+                layout.locate_loc(loc_items, loc);
+            }
+        },
+
+        Layout::All(layouts) => {
+            let mut max_loc = bytes.position();
+            let starting_loc = bytes.position();
+
+            for layout in layouts.iter() {
+                loc = starting_loc;
+                layout.locate_loc(loc_items, loc);
+
+                // check if this layout is the largest so far
+                let new_loc = layout.num_bytes();
+                if new_loc > max_loc {
+                    max_loc = new_loc;
+                }
+            }
+
+            loc = max_loc;
+        },
+        
+        // NOTE - Bit fields currently do not support endianness choice
+        //        bitreverse crate could help with this.
+        Layout::Bits(bits) => {
+          // NOTE implement Bits into LocItems
+          unimplemented!();
+        }
+    }
   }
 }
 
@@ -269,7 +330,6 @@ pub struct Point {
 }
 
 pub type ValueMap = HashMap<Name, Value>;
-
 
 impl Value {
     // NOTE this would work better with an IntValue separate

@@ -52,12 +52,14 @@ main!(|args: Cli, log_level : verbosity| {
             valuemap_csvheader(&layout, &mut writer);
 
             // NOTE assumes correctly formatted file!
-            while bytes.position() != byte_vec.len() as u64 {
+            while bytes.position() < byte_vec.len() as u64 {
                 let map = decode(&layout, &mut bytes);
                 valuemap_csv(&map, &mut writer);
             }
 
             println!("{}", to_string_pretty(&layout, Default::default()).expect("couldn't serialize layout!"));
+
+            println!("{:?}", layout.names());
         },
 
         Err(e) => {

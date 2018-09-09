@@ -7,21 +7,24 @@ extern crate bitreader;
 use bitreader::BitReader;
 
 extern crate bytes;
+#[allow(unused_imports)]
 use bytes::{Bytes, Buf};
 
 extern crate byteorder;
+#[allow(unused_imports)]
 use byteorder::{LittleEndian, BigEndian, ByteOrder};
 
+#[allow(unused_imports)]
 use std::io::{Cursor, Read};
 
 pub mod types;
 use types::*;
 
 
-pub fn decode(layout : Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
+pub fn decode(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
     let mut map = HashMap::new();
 
-    let _ = decode_layout(&layout, bytes, &mut map);
+    let _ = decode_layout(layout, bytes, &mut map);
 
     map
 }
@@ -155,54 +158,62 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
             bytes.set_position(max_loc);
         },
         
+        // NOTE - Bit fields currently do not support endianness choice
+        //        bitreverse crate could help with this.
         Layout::Bits(BitPrim{entries, num_bytes}) => {
-            let slice = bytes.get_mut();
-            let mut reader = BitReader::new(slice);
-            for (name, num_bits, int_prim) in entries.iter() {
-                match int_prim.signedness {
-                    Signedness::Unsigned => {
-                        match int_prim.size {
-                          IntSize::Bits8 => {
-                              let int_value = Value::U8(reader.read_u8(*num_bits as u8).unwrap());
-                              map.insert(name.to_string(), int_value);
-                          },
-                          IntSize::Bits16 => {
-                              let int_value = Value::U16(reader.read_u16(*num_bits as u8).unwrap());
-                              map.insert(name.to_string(), int_value);
-                          },
-                          IntSize::Bits32 => {
-                              let int_value = Value::U32(reader.read_u32(*num_bits as u8).unwrap());
-                              map.insert(name.to_string(), int_value);
-                          },
-                          IntSize::Bits64 => {
-                              let int_value = Value::U64(reader.read_u64(*num_bits as u8).unwrap());
-                              map.insert(name.to_string(), int_value);
-                          },
-                        }
-                    },
+            {
+                let slice = bytes.get_mut();
+                let mut reader = BitReader::new(slice);
+                for (name, num_bits, int_prim) in entries.iter() {
+                    match int_prim.signedness {
+                        Signedness::Unsigned => {
+                            match int_prim.size {
+                              IntSize::Bits8 => {
+                                  let int_value = Value::U8(reader.read_u8(*num_bits as u8).unwrap());
+                                  map.insert(name.to_string(), int_value);
+                              },
+                              IntSize::Bits16 => {
+                                  let int_value = Value::U16(reader.read_u16(*num_bits as u8).unwrap());
+                                  map.insert(name.to_string(), int_value);
+                              },
+                              IntSize::Bits32 => {
+                                  let int_value = Value::U32(reader.read_u32(*num_bits as u8).unwrap());
+                                  map.insert(name.to_string(), int_value);
+                              },
+                              IntSize::Bits64 => {
+                                  let int_value = Value::U64(reader.read_u64(*num_bits as u8).unwrap());
+                                  map.insert(name.to_string(), int_value);
+                              },
+                            }
+                        },
 
-                    Signedness::Signed => {
-                        match int_prim.size {
-                          IntSize::Bits8 => {
-                              let int_value = Value::I8(reader.read_i8(*num_bits as u8).unwrap());
-                              map.insert(name.to_string(), int_value);
-                          },
-                          IntSize::Bits16 => {
-                              let int_value = Value::I16(reader.read_i16(*num_bits as u8).unwrap());
-                              map.insert(name.to_string(), int_value);
-                          },
-                          IntSize::Bits32 => {
-                              let int_value = Value::I32(reader.read_i32(*num_bits as u8).unwrap());
-                              map.insert(name.to_string(), int_value);
-                          },
-                          IntSize::Bits64 => {
-                              let int_value = Value::I64(reader.read_i64(*num_bits as u8).unwrap());
-                              map.insert(name.to_string(), int_value);
-                          },
-                        }
-                    },
+                        Signedness::Signed => {
+                            match int_prim.size {
+                              IntSize::Bits8 => {
+                                  let int_value = Value::I8(reader.read_i8(*num_bits as u8).unwrap());
+                                  map.insert(name.to_string(), int_value);
+                              },
+                              IntSize::Bits16 => {
+                                  let int_value = Value::I16(reader.read_i16(*num_bits as u8).unwrap());
+                                  map.insert(name.to_string(), int_value);
+                              },
+                              IntSize::Bits32 => {
+                                  let int_value = Value::I32(reader.read_i32(*num_bits as u8).unwrap());
+                                  map.insert(name.to_string(), int_value);
+                              },
+                              IntSize::Bits64 => {
+                                  let int_value = Value::I64(reader.read_i64(*num_bits as u8).unwrap());
+                                  map.insert(name.to_string(), int_value);
+                              },
+                            }
+                        },
+                    }
                 }
             }
+
+            let current_position = bytes.position();
+            bytes.set_position(current_position +
+                               IntSize::num_bytes(num_bytes));
         }
     }
 }
@@ -210,6 +221,57 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_decode_layout() {
+      let bit_entries =
+          vec![("bits0".to_string(), 4,  IntPrim::u8_be()),
+               ("bits1".to_string(), 12, IntPrim::u16_be()),
+               ("bits2".to_string(), 2,  IntPrim::u8_be()),
+               ("bits3".to_string(), 14, IntPrim::u32_be())];
+      let bits_layout = Layout::Bits(BitPrim{entries : bit_entries, num_bytes : IntSize::Bits32});
+
+      let all_vec = vec![Layout::Prim(Item::new("all0".to_string(), Prim::Int(IntPrim::u8_be()))),
+                         Layout::Prim(Item::new("all1".to_string(), Prim::Int(IntPrim::u32_be()))),
+                         Layout::Prim(Item::new("all2".to_string(), Prim::Int(IntPrim::u8_be())))];
+      let all_layout = Layout::All(all_vec);
+
+      let prim_layout = Layout::Prim(Item::new("prim0".to_string(), Prim::Int(IntPrim::u8_be())));
+
+      let v = vec![0x12, 0x34, 0x56, 0x78,
+                   0x12, 0x34, 0x56, 0x78,
+                   0xAA
+                  ];
+      let mut bytes = Cursor::new(v.as_slice());
+
+      let layout = Layout::Seq(vec![bits_layout, all_layout , prim_layout]);
+
+      let value_map = decode(&layout, &mut bytes);
+
+      let value_bits0 = value_map.get(&"bits0".to_string()).unwrap();
+      assert!(*value_bits0 == Value::U8(0x01));
+
+      let value_bits1 = value_map.get(&"bits1".to_string()).unwrap();
+      assert!(*value_bits1 == Value::U16(0x0234));
+
+      let value_bits2 = value_map.get(&"bits2".to_string()).unwrap();
+      assert!(*value_bits2 == Value::U8(0x01));
+
+      let value_bits3 = value_map.get(&"bits3".to_string()).unwrap();
+      assert!(*value_bits3 == Value::U32(0x00001678));
+
+      let value_all0 = value_map.get(&"all0".to_string()).unwrap();
+      assert!(*value_all0 == Value::U8(0x12));
+
+      let value_all1 = value_map.get(&"all1".to_string()).unwrap();
+      assert!(*value_all1 == Value::U32(0x12345678));
+
+      let value_all2 = value_map.get(&"all2".to_string()).unwrap();
+      assert!(*value_all0 == Value::U8(0x12));
+
+      let value_prim0 = value_map.get(&"prim0".to_string()).unwrap();
+      assert!(*value_prim0 == Value::U8(0xAA));
+    }
 
     #[test]
     fn test_decode_prim() {
@@ -220,8 +282,6 @@ mod test {
 
       let float32_le = Prim::Float(FloatPrim::F32(Endianness::LittleEndian));
       let float64_le = Prim::Float(FloatPrim::F64(Endianness::LittleEndian));
-
-      //let bits_prim = Prim::Bits();
 
       let mut enum_map = BTreeMap::new();
       enum_map.insert(0, "Zero".to_string());

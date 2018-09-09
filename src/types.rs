@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 //use bitreader::BitReader;
 
 extern crate bytes;
+#[allow(unused_imports)]
 use self::bytes::{Bytes, Buf};
 
 
@@ -23,6 +24,17 @@ pub enum IntSize {
     Bits16,
     Bits32,
     Bits64,
+}
+
+impl IntSize {
+  pub fn num_bytes(int_size : &IntSize) -> u64 {
+    match int_size {
+      IntSize::Bits8  => 1,
+      IntSize::Bits16 => 2,
+      IntSize::Bits32 => 4,
+      IntSize::Bits64 => 8,
+    }
+  }
 }
 
 #[derive(Eq, PartialEq, Debug, Hash)]
@@ -54,6 +66,70 @@ impl IntPrim {
              endianness : endianness
            }
   }
+
+  pub fn u8_be() -> Self {
+    IntPrim::new(IntSize::Bits8, Signedness::Unsigned, Endianness::BigEndian)
+  }
+
+  pub fn u8_le() -> Self {
+    IntPrim::new(IntSize::Bits8, Signedness::Unsigned, Endianness::LittleEndian)
+  }
+
+  pub fn u16_be() -> Self {
+    IntPrim::new(IntSize::Bits16, Signedness::Unsigned, Endianness::BigEndian)
+  }
+
+  pub fn u16_le() -> Self {
+    IntPrim::new(IntSize::Bits16, Signedness::Unsigned, Endianness::LittleEndian)
+  }
+
+  pub fn u32_be() -> Self {
+    IntPrim::new(IntSize::Bits32, Signedness::Unsigned, Endianness::BigEndian)
+  }
+
+  pub fn u32_le() -> Self {
+    IntPrim::new(IntSize::Bits32, Signedness::Unsigned, Endianness::LittleEndian)
+  }
+
+  pub fn u64_be() -> Self {
+    IntPrim::new(IntSize::Bits64, Signedness::Unsigned, Endianness::BigEndian)
+  }
+
+  pub fn u64_le() -> Self {
+    IntPrim::new(IntSize::Bits64, Signedness::Unsigned, Endianness::LittleEndian)
+  }
+
+  pub fn i8_be() -> Self {
+    IntPrim::new(IntSize::Bits8, Signedness::Unsigned, Endianness::BigEndian)
+  }
+
+  pub fn i8_le() -> Self {
+    IntPrim::new(IntSize::Bits8, Signedness::Signed, Endianness::LittleEndian)
+  }
+
+  pub fn i16_be() -> Self {
+    IntPrim::new(IntSize::Bits16, Signedness::Signed, Endianness::BigEndian)
+  }
+
+  pub fn i16_le() -> Self {
+    IntPrim::new(IntSize::Bits16, Signedness::Signed, Endianness::LittleEndian)
+  }
+
+  pub fn i32_be() -> Self {
+    IntPrim::new(IntSize::Bits32, Signedness::Signed, Endianness::BigEndian)
+  }
+
+  pub fn i32_le() -> Self {
+    IntPrim::new(IntSize::Bits32, Signedness::Signed, Endianness::LittleEndian)
+  }
+
+  pub fn i64_be() -> Self {
+    IntPrim::new(IntSize::Bits64, Signedness::Signed, Endianness::BigEndian)
+  }
+
+  pub fn i64_le() -> Self {
+    IntPrim::new(IntSize::Bits64, Signedness::Signed, Endianness::LittleEndian)
+  }
 }
 
 // NOTE bits could be allow to be any size.
@@ -82,6 +158,12 @@ pub enum Prim {
 pub struct Item {
     pub name : Name,
     pub typ : Prim,
+}
+
+impl Item {
+  pub fn new(name : Name, typ : Prim) -> Self {
+    Item{name : name, typ : typ}
+  }
 }
 
 #[derive(Eq, PartialEq, Debug)]

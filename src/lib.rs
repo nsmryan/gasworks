@@ -124,6 +124,63 @@ pub fn decode_int(int_prim : &IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
     }
 }
 
+fn decode_bits(bits : &BitPrim, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) {
+    let BitPrim{entries, num_bytes} = bits;
+    {
+        let slice = bytes.get_mut();
+        let mut reader = BitReader::new(slice);
+        for (name, num_bits, int_prim) in entries.iter() {
+            match int_prim.signedness {
+                Signedness::Unsigned => {
+                    match int_prim.size {
+                      IntSize::Bits8 => {
+                          let int_value = Value::U8(reader.read_u8(*num_bits as u8).unwrap());
+                          map.insert(name.to_string(), int_value);
+                      },
+                      IntSize::Bits16 => {
+                          let int_value = Value::U16(reader.read_u16(*num_bits as u8).unwrap());
+                          map.insert(name.to_string(), int_value);
+                      },
+                      IntSize::Bits32 => {
+                          let int_value = Value::U32(reader.read_u32(*num_bits as u8).unwrap());
+                          map.insert(name.to_string(), int_value);
+                      },
+                      IntSize::Bits64 => {
+                          let int_value = Value::U64(reader.read_u64(*num_bits as u8).unwrap());
+                          map.insert(name.to_string(), int_value);
+                      },
+                    }
+                },
+
+                Signedness::Signed => {
+                    match int_prim.size {
+                      IntSize::Bits8 => {
+                          let int_value = Value::I8(reader.read_i8(*num_bits as u8).unwrap());
+                          map.insert(name.to_string(), int_value);
+                      },
+                      IntSize::Bits16 => {
+                          let int_value = Value::I16(reader.read_i16(*num_bits as u8).unwrap());
+                          map.insert(name.to_string(), int_value);
+                      },
+                      IntSize::Bits32 => {
+                          let int_value = Value::I32(reader.read_i32(*num_bits as u8).unwrap());
+                          map.insert(name.to_string(), int_value);
+                      },
+                      IntSize::Bits64 => {
+                          let int_value = Value::I64(reader.read_i64(*num_bits as u8).unwrap());
+                          map.insert(name.to_string(), int_value);
+                      },
+                    }
+                },
+            }
+        }
+    }
+
+    let current_position = bytes.position();
+    bytes.set_position(current_position +
+                       IntSize::num_bytes(num_bytes));
+}
+
 fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) {
     
     match layout {
@@ -160,60 +217,8 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
         
         // NOTE - Bit fields currently do not support endianness choice
         //        bitreverse crate could help with this.
-        Layout::Bits(BitPrim{entries, num_bytes}) => {
-            {
-                let slice = bytes.get_mut();
-                let mut reader = BitReader::new(slice);
-                for (name, num_bits, int_prim) in entries.iter() {
-                    match int_prim.signedness {
-                        Signedness::Unsigned => {
-                            match int_prim.size {
-                              IntSize::Bits8 => {
-                                  let int_value = Value::U8(reader.read_u8(*num_bits as u8).unwrap());
-                                  map.insert(name.to_string(), int_value);
-                              },
-                              IntSize::Bits16 => {
-                                  let int_value = Value::U16(reader.read_u16(*num_bits as u8).unwrap());
-                                  map.insert(name.to_string(), int_value);
-                              },
-                              IntSize::Bits32 => {
-                                  let int_value = Value::U32(reader.read_u32(*num_bits as u8).unwrap());
-                                  map.insert(name.to_string(), int_value);
-                              },
-                              IntSize::Bits64 => {
-                                  let int_value = Value::U64(reader.read_u64(*num_bits as u8).unwrap());
-                                  map.insert(name.to_string(), int_value);
-                              },
-                            }
-                        },
-
-                        Signedness::Signed => {
-                            match int_prim.size {
-                              IntSize::Bits8 => {
-                                  let int_value = Value::I8(reader.read_i8(*num_bits as u8).unwrap());
-                                  map.insert(name.to_string(), int_value);
-                              },
-                              IntSize::Bits16 => {
-                                  let int_value = Value::I16(reader.read_i16(*num_bits as u8).unwrap());
-                                  map.insert(name.to_string(), int_value);
-                              },
-                              IntSize::Bits32 => {
-                                  let int_value = Value::I32(reader.read_i32(*num_bits as u8).unwrap());
-                                  map.insert(name.to_string(), int_value);
-                              },
-                              IntSize::Bits64 => {
-                                  let int_value = Value::I64(reader.read_i64(*num_bits as u8).unwrap());
-                                  map.insert(name.to_string(), int_value);
-                              },
-                            }
-                        },
-                    }
-                }
-            }
-
-            let current_position = bytes.position();
-            bytes.set_position(current_position +
-                               IntSize::num_bytes(num_bytes));
+        Layout::Bits(bits) => {
+            decode_bits(bits, bytes, map);
         }
     }
 }

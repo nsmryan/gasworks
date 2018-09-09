@@ -17,6 +17,11 @@ extern crate byteorder;
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, BigEndian, ByteOrder};
 
+extern crate ron;
+
+#[macro_use]
+extern crate serde;
+
 #[allow(unused_imports)]
 use std::io::{Cursor, Read};
 

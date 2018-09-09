@@ -5,9 +5,6 @@ use std::collections::HashMap;
 #[allow(unused_imports)]
 use std::collections::BTreeMap;
 
-//extern crate bitreader;
-//use bitreader::BitReader;
-
 use std::fmt;
 
 extern crate bytes;
@@ -17,13 +14,13 @@ use self::bytes::{Bytes, Buf};
 
 pub type Name = String;
 
-#[derive(Eq, PartialEq, Debug, Hash)]
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub enum Endianness {
     BigEndian,
     LittleEndian,
 }
 
-#[derive(Eq, PartialEq, Debug, Hash)]
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub enum IntSize {
     Bits8,
     Bits16,
@@ -42,19 +39,19 @@ impl IntSize {
   }
 }
 
-#[derive(Eq, PartialEq, Debug, Hash)]
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub enum Signedness {
     Unsigned,
     Signed,
 }
 
-#[derive(Eq, PartialEq, Debug, Hash)]
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub enum FloatPrim {
     F32(Endianness),
     F64(Endianness),
 }
 
-#[derive(Eq, PartialEq, Debug, Hash)]
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub struct IntPrim {
     pub size : IntSize,
     pub signedness : Signedness,
@@ -139,19 +136,19 @@ impl IntPrim {
 
 // NOTE bits could be allow to be any size.
 // currently limited to 8/16/32/64 fields
-#[derive(Eq, PartialEq, Debug, Hash)]
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub struct BitPrim {
     pub entries : Vec<(Name, u32, IntPrim)>,
     pub num_bytes : IntSize,
 }
 
-#[derive(Eq, PartialEq, Debug, Hash)]
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub struct Enum {
     pub map : BTreeMap<i64, Name>,
     pub int_prim : IntPrim,
 }
 
-#[derive(Eq, PartialEq, Debug, Hash)]
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub enum Prim {
     Int(IntPrim),
     Float(FloatPrim),
@@ -159,7 +156,7 @@ pub enum Prim {
     Enum(Enum),
 }
 
-#[derive(Eq, PartialEq, Debug, Hash)]
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub struct Item {
     pub name : Name,
     pub typ : Prim,
@@ -171,7 +168,7 @@ impl Item {
   }
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub enum Layout {
     Prim(Item),
     Seq(Vec<Layout>),

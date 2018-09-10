@@ -234,6 +234,12 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
     }
 }
 
+fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point {
+    // NOTE need to set position of bytes for each LocItem! this implemention is
+    // is very wrong!
+    Point::new(loc_item.name.clone(), decode_prim(&loc_item.typ, bytes))
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

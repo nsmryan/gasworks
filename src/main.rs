@@ -51,6 +51,11 @@ main!(|args: Cli, log_level : verbosity| {
 
             valuemap_csvheader(&layout, &mut writer);
 
+            let locations = layout.locate();
+
+            //for location in locations {
+            //}
+
             // NOTE assumes correctly formatted file!
             while bytes.position() < byte_vec.len() as u64 {
                 let map = decode_to_map(&layout, &mut bytes);

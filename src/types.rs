@@ -20,13 +20,13 @@ pub type Name = String;
 
 pub type Loc = u64;
 
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub enum Endianness {
     BigEndian,
     LittleEndian,
 }
 
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub enum IntSize {
     Bits8,
     Bits16,
@@ -45,13 +45,13 @@ impl NumBytes for IntSize {
   }
 }
 
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub enum Signedness {
     Unsigned,
     Signed,
 }
 
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub enum FloatPrim {
     F32(Endianness),
     F64(Endianness),
@@ -66,7 +66,7 @@ impl NumBytes for FloatPrim {
   }
 }
 
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub struct IntPrim {
     pub size : IntSize,
     pub signedness : Signedness,
@@ -157,7 +157,7 @@ impl IntPrim {
 
 // NOTE bits could be allow to be any size.
 // currently limited to 8/16/32/64 fields
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub struct BitPrim {
     pub entries : Vec<(Name, u32, IntPrim)>,
     // NOTE rename to size or int_prim
@@ -170,7 +170,7 @@ impl NumBytes for BitPrim {
   }
 }
 
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub struct Enum {
     pub map : BTreeMap<i64, Name>,
     pub int_prim : IntPrim,
@@ -182,7 +182,7 @@ impl NumBytes for Enum {
   }
 }
 
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub enum Prim {
     Int(IntPrim),
     Float(FloatPrim),
@@ -319,7 +319,8 @@ impl Layout {
   pub fn locate_loc(&self, loc_items : &mut Vec<LocItem>, loc : &mut Loc) {
     match self {
         Layout::Prim(item) => {
-            loc_items.push(LocItem::new(item.name.to_string(), item.typ, *loc));
+            let typ = item.typ.clone();
+            loc_items.push(LocItem::new(item.name.to_string(), typ, *loc));
             *loc += item.typ.num_bytes();
         },
 
@@ -330,21 +331,21 @@ impl Layout {
         },
 
         Layout::All(layouts) => {
-            let mut max_loc = loc;
-            let starting_loc = loc;
+            let mut max_loc = *loc;
+            let starting_loc = *loc;
 
             for layout in layouts.iter() {
-                loc = starting_loc;
+                *loc = starting_loc;
                 layout.locate_loc(loc_items, loc);
 
                 // check if this layout is the largest so far
                 let new_loc = layout.num_bytes();
-                if new_loc > *max_loc {
-                    *max_loc = new_loc;
+                if new_loc > max_loc {
+                    max_loc = new_loc;
                 }
             }
 
-            *loc = *max_loc;
+            *loc = max_loc;
         },
         
         Layout::Bits(bits) => {
@@ -410,6 +411,12 @@ impl fmt::Display for Value {
 pub struct Point {
     pub name : Name,
     pub val : Value,
+}
+
+impl Point {
+    pub fn new(name : Name, val : Value) -> Point {
+        Point { name : name, val : val }
+    }
 }
 
 pub type ValueMap = HashMap<Name, Value>;

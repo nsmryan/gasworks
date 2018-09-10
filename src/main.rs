@@ -51,15 +51,21 @@ main!(|args: Cli, log_level : verbosity| {
 
             valuemap_csvheader(&layout, &mut writer);
 
-            let locations = layout.locate();
-
-            //for location in locations {
-            //}
+            let located = layout.locate();
+            let num_bytes = located.num_bytes() as usize;
 
             // NOTE assumes correctly formatted file!
             while bytes.position() < byte_vec.len() as u64 {
-                let map = decode_to_map(&layout, &mut bytes);
-                valuemap_csv(&map, &mut writer);
+                let position = bytes.position() as usize;
+                let layout_bytes = bytes.into_inner();
+
+                let layout_bytes = &layout_bytes[position .. (position + num_bytes)];
+
+                let points = decode_loc_layout(&located, &mut Cursor::new(layout_bytes));
+
+                let record : Vec<String> =
+                  points.iter().map(|point| {point.val.to_string()}).collect();
+                writer.write_record(record);
             }
 
             println!("{}", to_string_pretty(&layout, Default::default()).expect("couldn't serialize layout!"));

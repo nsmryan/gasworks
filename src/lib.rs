@@ -5,6 +5,8 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 #[allow(unused_imports)]
 use std::collections::BTreeMap;
+#[allow(unused_imports)]
+use std::iter::Iterator;
 
 extern crate bitreader;
 use bitreader::BitReader;
@@ -234,9 +236,16 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
     }
 }
 
-fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point {
+pub fn decode_loc_layout(loc_layout : &LocLayout, bytes : &mut Cursor<&[u8]>) -> Vec<Point> {
+    loc_layout.loc_items.iter()
+                        .map(|loc_item| {decode_loc_item(loc_item, bytes)})
+                        .collect()
+}
+
+pub fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point {
     // NOTE need to set position of bytes for each LocItem! this implemention is
     // is very wrong!
+    bytes.set_position(loc_item.loc);
     Point::new(loc_item.name.clone(), decode_prim(&loc_item.typ, bytes))
 }
 

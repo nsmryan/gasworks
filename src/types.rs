@@ -237,6 +237,17 @@ impl LocItem {
   }
 }
 
+pub struct LocLayout {
+    pub loc_items : Vec<LocItem>,
+    pub num_bytes : u64,
+}
+
+impl NumBytes for LocLayout {
+    fn num_bytes(&self) -> u64 {
+        self.num_bytes
+    }
+}
+
 #[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub enum Layout {
     Prim(Item),
@@ -308,12 +319,12 @@ impl Layout {
     names
   }
 
-  pub fn locate(&self) -> Vec<LocItem> {
+  pub fn locate(&self) -> LocLayout {
     let mut loc = 0;
     let mut loc_items = Vec::new();
     self.locate_loc(&mut loc_items, &mut loc);
 
-    loc_items
+    LocLayout { loc_items : loc_items, num_bytes : self.num_bytes() }
   }
 
   pub fn locate_loc(&self, loc_items : &mut Vec<LocItem>, loc : &mut Loc) {

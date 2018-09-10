@@ -6,12 +6,13 @@ use std::collections::HashMap;
 use std::collections::BTreeMap;
 
 use std::fmt;
+use std::cmp;
 
 extern crate bytes;
 #[allow(unused_imports)]
 use self::bytes::{Bytes, Buf};
 
-trait NumBytes {
+pub trait NumBytes {
   fn num_bytes(&self) -> u64;
 }
 
@@ -218,7 +219,7 @@ impl Item {
 }
 
 #[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
-struct LocItem {
+pub struct LocItem {
   pub name : Name,
   pub typ : Prim,
   pub loc : Loc,
@@ -264,7 +265,7 @@ impl NumBytes for Layout {
       Layout::All(layouts) => {
         let mut num_bytes = 0;
         for layout in layouts.iter() {
-          num_bytes = std::cmp::max(num_bytes, layout.num_bytes())
+          num_bytes = cmp::max(num_bytes, layout.num_bytes())
         }
         num_bytes
       },
@@ -310,12 +311,12 @@ impl Layout {
   pub fn locate(&self) -> Vec<LocItem> {
     let mut loc = 0;
     let mut loc_items = Vec::new();
-    locate_loc(self, &loc_items, &loc);
+    self.locate_loc(&mut loc_items, &mut loc);
 
     loc_items
   }
 
-  fn locate_loc(&self, loc_items : &mut Vec<LocItem>, loc : &mut Loc) {
+  pub fn locate_loc(&self, loc_items : &mut Vec<LocItem>, loc : &mut Loc) {
     match self {
         Layout::Prim(item) => {
             loc_items.push(LocItem::new(item.name.to_string(), item.typ, *loc));
@@ -329,8 +330,8 @@ impl Layout {
         },
 
         Layout::All(layouts) => {
-            let mut max_loc = bytes.position();
-            let starting_loc = bytes.position();
+            let mut max_loc = loc;
+            let starting_loc = loc;
 
             for layout in layouts.iter() {
                 loc = starting_loc;
@@ -338,12 +339,12 @@ impl Layout {
 
                 // check if this layout is the largest so far
                 let new_loc = layout.num_bytes();
-                if new_loc > max_loc {
-                    max_loc = new_loc;
+                if new_loc > *max_loc {
+                    *max_loc = new_loc;
                 }
             }
 
-            *loc = max_loc;
+            *loc = *max_loc;
         },
         
         Layout::Bits(bits) => {

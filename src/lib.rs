@@ -189,7 +189,7 @@ fn decode_bits(bits : &BitPrim, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap)
 
     let current_position = bytes.position();
     bytes.set_position(current_position +
-                       IntSize::num_bytes(num_bytes));
+                       (*num_bytes).num_bytes());
 }
 
 fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) {

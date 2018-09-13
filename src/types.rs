@@ -374,13 +374,15 @@ impl Layout {
 }
 
 #[derive(Eq, PartialEq, Debug)]
-pub enum Packet {
-    Seq(Vec<Packet>),
+pub enum Packet<T> {
+    Seq(Vec<Packet<T>>),
     // NOTE add back in multiple items here when needed. removed for simplicity.
     // Subcom(HashMap<Vec<Item>, Packet>),
-    Subcom(LocItem, Vec<(LocItem, Packet)>),
-    Layout(LocLayout),
+    Subcom(T, Vec<(T, Packet<T>)>),
+    Leaf(Vec<T>),
 }
+
+pub type LayoutPacket = Packet<Layout>;
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Protocol {

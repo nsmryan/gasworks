@@ -240,12 +240,17 @@ impl LocItem {
 #[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub struct LocLayout {
     pub loc_items : Vec<LocItem>,
-    pub num_bytes : u64,
 }
 
 impl NumBytes for LocLayout {
     fn num_bytes(&self) -> u64 {
-        self.num_bytes
+        let mut num_bytes = 0;
+
+        for loc_item in &self.loc_items {
+            num_bytes = cmp::max(num_bytes, loc_item.loc + loc_item.typ.num_bytes());
+        }
+
+        num_bytes
     }
 }
 
@@ -325,7 +330,7 @@ impl Layout {
     let mut loc_items = Vec::new();
     self.locate_loc(&mut loc_items, &mut loc);
 
-    LocLayout { loc_items : loc_items, num_bytes : self.num_bytes() }
+    LocLayout { loc_items : loc_items }
   }
 
   pub fn locate_loc(&self, loc_items : &mut Vec<LocItem>, loc : &mut Loc) {

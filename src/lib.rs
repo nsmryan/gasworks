@@ -251,7 +251,7 @@ pub fn decode_packet(packet : &Packet, bytes : &mut Cursor<&[u8]>) -> LocLayout
 {
     let locs = Vec::new();
 
-    let mut loc_layout = LocLayout{ loc_items : locs, num_bytes : 0};
+    let mut loc_layout = LocLayout{ loc_items : locs};
 
     decode_packet_helper(packet, bytes, &mut loc_layout);
 
@@ -286,7 +286,6 @@ fn decode_packet_helper(packet : &Packet, bytes : &mut Cursor<&[u8]>, loc_layout
         Packet::Layout(layer_loc_layout) => {
             // NOTE can we avoid this copying of data?
             loc_layout.loc_items.extend(layer_loc_layout.loc_items.iter().cloned());
-            loc_layout.num_bytes = layer_loc_layout.num_bytes;
         },
     }
 }

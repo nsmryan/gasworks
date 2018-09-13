@@ -259,7 +259,9 @@ pub enum Layout {
     Prim(Item),
     Seq(Vec<Layout>),
     All(Vec<Layout>),
-    // maybe Placement(u64, Layout)
+    // NOTE consider whether Placements still make sense.
+    // they can be encoded by buffers and Alls
+    // Placement(u64, Layout)
     Bits(BitPrim),
 }
 
@@ -382,16 +384,39 @@ pub enum Packet<T> {
     Leaf(Vec<T>),
 }
 
-pub type LayoutPacket = Packet<Layout>;
+pub type LocPacket = Packet<LocItem>;
+
+pub type LayoutPacket = Packet<Item>;
+
+impl LayoutPacket {
+    pub fn locate(&self) -> LocPacket {
+        match self {
+            Packet::Seq(packets) => {
+                Packet::Seq(packets.iter().map(|packet| {packet.locate()}).collect())
+            },
+
+            Packet::Subcom(item, pairs) => {
+                unimplemented!();
+            },
+
+            Packet::Leaf(items) => {
+                let prims = items.into_iter().map(|item| {Layout::Prim(*item)}).collect();
+                let seq = Layout::Seq(prims);
+                Packet::Leaf(seq.locate().loc_items)
+            },
+        }
+    }
+}
 
 #[derive(Eq, PartialEq, Debug)]
-pub enum Protocol {
-    Seq(Vec<Protocol>),
+pub enum Protocol<T> {
+    Seq(Vec<Protocol<T>>),
     // NOTE extend to multiple item/value pairs. current restriction to single item is for
     // simplicity
-    Branch(LocItem, Vec<(LocItem, Protocol)>),
+    Branch(LocItem, Vec<(LocItem, Protocol<T>)>),
+    // NOTE maybe could become LocItem and only decode necessary items
     Layout(Layout),
-    Packet(Packet),
+    Leaf(T),
 }
 
 pub type LayoutMap = HashMap<Name, (Loc, Prim)>;

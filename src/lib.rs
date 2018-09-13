@@ -247,6 +247,50 @@ pub fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point
     Point::new(loc_item.name.clone(), decode_prim(&loc_item.typ, bytes))
 }
 
+pub fn decode_packet(packet : &Packet, bytes : &mut Cursor<&[u8]>) -> LocLayout
+{
+    let locs = Vec::new();
+
+    let mut loc_layout = LocLayout{ loc_items : locs, num_bytes : 0};
+
+    decode_packet_helper(packet, bytes, &mut loc_layout);
+
+    loc_layout
+}
+
+fn decode_packet_helper(packet : &Packet, bytes : &mut Cursor<&[u8]>, loc_layout : &mut LocLayout) 
+{
+    match packet {
+        Packet::Seq(packets) => {
+            for packet in packets {
+                decode_packet_helper(packet, bytes, loc_layout);
+            }
+        },
+
+        Packet::Subcom(item, subcom) => {
+            // NOTE we are decoding items here and throwing them away. the assumption is that
+            // we don't decode many items, and don't need to keep our work.
+            // we re-decode items even if they are used in other iterations of this loop!
+            let value = decode_loc_item(&item, bytes);
+
+            for (item_key, packet_value) in subcom {
+                let item_value = decode_loc_item(item_key, bytes);
+
+                if value == item_value {
+                    decode_packet_helper(packet_value, bytes, loc_layout);
+                    break;
+                }
+            }
+        },
+
+        Packet::Layout(layer_loc_layout) => {
+            // NOTE can we avoid this copying of data?
+            loc_layout.loc_items.extend(layer_loc_layout.loc_items.iter().cloned());
+            loc_layout.num_bytes = layer_loc_layout.num_bytes;
+        },
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

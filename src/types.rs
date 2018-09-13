@@ -218,7 +218,7 @@ impl Item {
   }
 }
 
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub struct LocItem {
   pub name : Name,
   pub typ : Prim,
@@ -237,6 +237,7 @@ impl LocItem {
   }
 }
 
+#[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub struct LocLayout {
     pub loc_items : Vec<LocItem>,
     pub num_bytes : u64,
@@ -370,14 +371,18 @@ impl Layout {
 #[derive(Eq, PartialEq, Debug)]
 pub enum Packet {
     Seq(Vec<Packet>),
-    Subcom(HashMap<Vec<Item>, Packet>),
-    Layout(Layout),
+    // NOTE add back in multiple items here when needed. removed for simplicity.
+    // Subcom(HashMap<Vec<Item>, Packet>),
+    Subcom(LocItem, Vec<(LocItem, Packet)>),
+    Layout(LocLayout),
 }
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Protocol {
     Seq(Vec<Protocol>),
-    Branch(Vec<(Vec<Prim>, Protocol)>),
+    // NOTE extend to multiple item/value pairs. current restriction to single item is for
+    // simplicity
+    Branch(LocItem, Vec<(LocItem, Protocol)>),
     Layout(Layout),
     Packet(Packet),
 }

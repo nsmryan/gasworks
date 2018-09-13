@@ -191,7 +191,7 @@ fn decode_bits(bits : &BitPrim, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap)
 
     let current_position = bytes.position();
     bytes.set_position(current_position +
-                       (*num_bytes).num_bytes());
+                       num_bytes);
 }
 
 fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueMap) {
@@ -243,8 +243,6 @@ pub fn decode_loc_layout(loc_layout : &LocLayout, bytes : &mut Cursor<&[u8]>) ->
 }
 
 pub fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point {
-    // NOTE need to set position of bytes for each LocItem! this implemention is
-    // is very wrong!
     bytes.set_position(loc_item.loc);
     Point::new(loc_item.name.clone(), decode_prim(&loc_item.typ, bytes))
 }
@@ -260,7 +258,7 @@ mod test {
                ("bits1".to_string(), 12, IntPrim::u16_be()),
                ("bits2".to_string(), 2,  IntPrim::u8_be()),
                ("bits3".to_string(), 14, IntPrim::u32_be())];
-      let bits_layout = Layout::Bits(BitPrim{entries : bit_entries, num_bytes : IntSize::Bits32});
+      let bits_layout = Layout::Bits(BitPrim{entries : bit_entries, num_bytes : 4});
 
       let all_vec = vec![Layout::Prim(Item::new("all0".to_string(), Prim::Int(IntPrim::u8_be()))),
                          Layout::Prim(Item::new("all1".to_string(), Prim::Int(IntPrim::u32_be()))),

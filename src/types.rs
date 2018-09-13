@@ -161,12 +161,12 @@ impl IntPrim {
 pub struct BitPrim {
     pub entries : Vec<(Name, u32, IntPrim)>,
     // NOTE rename to size or int_prim
-    pub num_bytes : IntSize,
+    pub num_bytes : u64,
 }
 
 impl NumBytes for BitPrim {
   fn num_bytes(&self) -> u64 {
-    self.num_bytes.num_bytes()
+    self.num_bytes
   }
 }
 

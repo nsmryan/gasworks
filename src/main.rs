@@ -27,8 +27,7 @@ extern crate csv;
 
 
 #[derive(Debug, StructOpt)]
-struct Cli {
-    format : String,
+struct Cli { format : String,
 
     infile : String,
 
@@ -39,8 +38,7 @@ struct Cli {
 }
 
 main!(|args: Cli, log_level : verbosity| {
-    let mut writer = csv::Writer::from_path(args.outfile).unwrap();
-
+    let mut writer = csv::Writer::from_path(args.outfile).unwrap(); 
     let layout_string = File::open(args.format).expect("could not read format file!");
     match from_reader(layout_string)
     {
@@ -57,15 +55,20 @@ main!(|args: Cli, log_level : verbosity| {
             // NOTE assumes correctly formatted file!
             while bytes.position() < byte_vec.len() as u64 {
                 let position = bytes.position() as usize;
-                let layout_bytes = bytes.into_inner();
 
-                let layout_bytes = &layout_bytes[position .. (position + num_bytes)];
+                {
+                    let layout_bytes = bytes.get_ref();
 
-                let points = decode_loc_layout(&located, &mut Cursor::new(layout_bytes));
+                    let layout_bytes = &layout_bytes[position .. (position + num_bytes)];
 
-                let record : Vec<String> =
-                  points.iter().map(|point| {point.val.to_string()}).collect();
-                writer.write_record(record);
+                    let points = decode_loc_layout(&located, &mut Cursor::new(layout_bytes));
+
+                    let record : Vec<String> =
+                      points.iter().map(|point| {point.val.to_string()}).collect();
+                    writer.write_record(record);
+                }
+
+                bytes.set_position((position + num_bytes) as u64);
             }
 
             println!("{}", to_string_pretty(&layout, Default::default()).expect("couldn't serialize layout!"));

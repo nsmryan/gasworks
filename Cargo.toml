@@ -18,6 +18,7 @@ quicli="0.3.0"
 csv="1.0.1"
 ron="0.4.0"
 serde= { version = "1", features = ["serde_derive"] }
+nom="4.0.0"
 
 [[bin]]
 name="packet-tool"

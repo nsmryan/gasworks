@@ -4,6 +4,8 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 #[allow(unused_imports)]
 use std::collections::BTreeMap;
+#[allow(unused_imports)]
+use std::option;
 
 use std::fmt;
 use std::cmp;
@@ -19,6 +21,8 @@ pub trait NumBytes {
 pub type Name = String;
 
 pub type Loc = u64;
+
+pub type ChoicePoints = HashMap<Name, Option<Value>>;
 
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub enum Endianness {
@@ -64,6 +68,21 @@ impl NumBytes for FloatPrim {
       FloatPrim::F64(_) => 8,
     }
   }
+}
+
+impl FloatPrim {
+    pub fn f32_be() -> FloatPrim {
+        FloatPrim::F32(Endianness::BigEndian)
+    }
+    pub fn f32_le() -> FloatPrim {
+        FloatPrim::F32(Endianness::LittleEndian)
+    }
+    pub fn f64_be() -> FloatPrim {
+        FloatPrim::F64(Endianness::BigEndian)
+    }
+    pub fn f64_le() -> FloatPrim {
+        FloatPrim::F64(Endianness::LittleEndian)
+    }
 }
 
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
@@ -204,6 +223,14 @@ impl NumBytes for Prim {
 pub struct Item {
     pub name : Name,
     pub typ : Prim,
+}
+
+impl Clone for Item {
+    fn clone(&self) -> Item {
+        Item {name : self.name.clone(),
+             typ  : self.typ.clone(),
+        }
+    }
 }
 
 impl NumBytes for Item {
@@ -367,7 +394,7 @@ impl Layout {
             *loc = max_loc;
         },
         
-        Layout::Bits(bits) => {
+        Layout::Bits(_bits) => {
           // NOTE implement Bits into LocItems
           unimplemented!();
         }
@@ -375,13 +402,13 @@ impl Layout {
   }
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub enum Packet<T> {
     Seq(Vec<Packet<T>>),
     // NOTE add back in multiple items here when needed. removed for simplicity.
     // Subcom(HashMap<Vec<Item>, Packet>),
     Subcom(T, Vec<(T, Packet<T>)>),
-    Leaf(Vec<T>),
+    Leaf(T),
 }
 
 pub type LocPacket = Packet<LocItem>;
@@ -389,6 +416,8 @@ pub type LocPacket = Packet<LocItem>;
 pub type LayoutPacket = Packet<Item>;
 
 impl LayoutPacket {
+    // NOTE this function does not work! it does not create the 
+    // correct locations for LocItems!
     pub fn locate(&self) -> LocPacket {
         match self {
             Packet::Seq(packets) => {
@@ -396,13 +425,21 @@ impl LayoutPacket {
             },
 
             Packet::Subcom(item, pairs) => {
-                unimplemented!();
+                // NOTE use of clone
+                Packet::Subcom(LocItem::new(item.name.clone(), item.typ.clone(), 0),
+                               pairs.iter().map(|(item, packet)| {
+                                   (LocItem::new(item.name.clone(), item.typ.clone(), 0),
+                                    packet.locate())
+                               }).collect()
+                )
             },
 
-            Packet::Leaf(items) => {
-                let prims = items.into_iter().map(|item| {Layout::Prim(*item)}).collect();
-                let seq = Layout::Seq(prims);
-                Packet::Leaf(seq.locate().loc_items)
+            Packet::Leaf(ref item) => {
+                // NOTE use of clone
+                let prim = Layout::Prim(item.clone());
+                let seq = Layout::Seq(vec!(prim));
+                // NOTE use of clone
+                Packet::Leaf(seq.locate().loc_items[0].clone())
             },
         }
     }
@@ -411,8 +448,8 @@ impl LayoutPacket {
 #[derive(Eq, PartialEq, Debug)]
 pub enum Protocol<T> {
     Seq(Vec<Protocol<T>>),
-    // NOTE extend to multiple item/value pairs. current restriction to single item is for
-    // simplicity
+    // NOTE extend to multiple item/value pairs.
+    // current restriction to single item is for simplicity
     Branch(LocItem, Vec<(LocItem, Protocol<T>)>),
     // NOTE maybe could become LocItem and only decode necessary items
     Layout(Layout),
@@ -437,6 +474,24 @@ pub enum Value {
     Enum(Name, i64),
 }
 
+impl Clone for Value {
+    fn clone(&self) -> Value {
+        match self {
+          Value::U8(value)         => Value::U8(*value),
+          Value::U16(value)        => Value::U16(*value),
+          Value::U32(value)        => Value::U32(*value),
+          Value::U64(value)        => Value::U64(*value),
+          Value::I8(value)         => Value::I8(*value),
+          Value::I16(value)        => Value::I16(*value),
+          Value::I32(value)        => Value::I32(*value),
+          Value::I64(value)        => Value::I64(*value),
+          Value::F32(value)        => Value::F32(*value),
+          Value::F64(value)        => Value::F64(*value),
+          Value::Enum(name, value) => Value::Enum(name.clone(), *value),
+        }
+    }
+}
+
 impl fmt::Display for Value {
   fn fmt(&self, f : &mut fmt::Formatter) -> fmt::Result {
     match self {
@@ -450,7 +505,7 @@ impl fmt::Display for Value {
       Value::I64(value)        => write!(f, "{}", value),
       Value::F32(value)        => write!(f, "{}", value),
       Value::F64(value)        => write!(f, "{}", value),
-      Value::Enum(name, value) => write!(f, "{}", value),
+      Value::Enum(_, value) => write!(f, "{}", value),
     }
   }
 }
@@ -482,8 +537,8 @@ impl Value {
             Value::I16(int) =>   *int as i64,
             Value::I32(int) =>   *int as i64,
             Value::I64(int) =>   *int as i64,
-            Value::F32(int) =>   panic!("Found an F32 in a value, expecting an int!"),
-            Value::F64(int) =>   panic!("Found an F64 in a value, expecting an int!"),
+            Value::F32(_) =>   panic!("Found an F32 in a value, expecting an int!"),
+            Value::F64(_) =>   panic!("Found an F64 in a value, expecting an int!"),
             //Value::Bytes(_) =>   panic!("Found an Bytes in a value, expecting an int!"),
             Value::Enum(_, _) => panic!("Found an Enum in a value, expecting an int!"),
         }

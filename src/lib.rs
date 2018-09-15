@@ -31,7 +31,7 @@ pub mod types;
 use types::*;
 
 pub mod csv;
-use csv::*;
+// use csv::*;
 
 
 pub fn decode_to_map(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
@@ -238,7 +238,9 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
 
 pub fn decode_loc_layout(loc_layout : &LocLayout, bytes : &mut Cursor<&[u8]>) -> Vec<Point> {
     loc_layout.loc_items.iter()
-                        .map(|loc_item| {decode_loc_item(loc_item, bytes)})
+                        .map(|loc_item| {
+                            decode_loc_item(loc_item, bytes)
+                        })
                         .collect()
 }
 
@@ -247,23 +249,62 @@ pub fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point
     Point::new(loc_item.name.clone(), decode_prim(&loc_item.typ, bytes))
 }
 
-pub fn decode_locpacket(packet : &LocPacket, bytes : &mut Cursor<&[u8]>) -> LocLayout
+pub fn decode_layoutpacket(layout_packet : &LayoutPacket,
+                           bytes         : &mut Cursor<&[u8]>) -> HashMap<Name, Value> {
+    let mut map = HashMap::new();
+
+    decode_layoutpacket_helper(layout_packet, bytes, &mut map);
+
+    map
+}
+pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
+                                  bytes         : &mut Cursor<&[u8]>,
+                                  map           : &mut HashMap<Name, Value>) {
+    match layout_packet {
+        Packet::Seq(packets) => {
+            for packet in packets {
+                decode_layoutpacket_helper(packet, bytes, map);
+            }
+        },
+
+        Packet::Subcom(item, subcom) => {
+            let value : Value = map[&item.name].clone();
+
+            for (item_key, packet) in subcom {
+                let subcom_value = &map[&item_key.name].clone();
+
+                if value == *subcom_value {
+                    decode_layoutpacket_helper(packet, bytes, map);
+                    break;
+                }
+            }
+        },
+
+        Packet::Leaf(item) => {
+            map.insert(item.name.clone(), decode_prim(&item.typ, bytes));
+        },
+    }
+}
+
+pub fn identify_locpacket(packet : &LocPacket, bytes : &mut Cursor<&[u8]>) -> LocLayout
 {
     let locs = Vec::new();
 
     let mut loc_layout = LocLayout{ loc_items : locs};
 
-    decode_locpacket_helper(packet, bytes, &mut loc_layout);
+    identify_locpacket_helper(packet, bytes, &mut loc_layout);
 
     loc_layout
 }
 
-fn decode_locpacket_helper(packet : &LocPacket, bytes : &mut Cursor<&[u8]>, loc_layout : &mut LocLayout) 
+fn identify_locpacket_helper(packet : &LocPacket, 
+                             bytes : &mut Cursor<&[u8]>,
+                             loc_layout : &mut LocLayout) 
 {
     match packet {
         Packet::Seq(packets) => {
             for packet in packets {
-                decode_locpacket_helper(packet, bytes, loc_layout);
+                identify_locpacket_helper(packet, bytes, loc_layout);
             }
         },
 
@@ -277,17 +318,41 @@ fn decode_locpacket_helper(packet : &LocPacket, bytes : &mut Cursor<&[u8]>, loc_
                 let item_value = decode_loc_item(item_key, bytes);
 
                 if value == item_value {
-                    decode_locpacket_helper(packet_value, bytes, loc_layout);
+                    identify_locpacket_helper(packet_value, bytes, loc_layout);
                     break;
                 }
             }
         },
 
         Packet::Leaf(layer_loc_layout) => {
-            // NOTE can we avoid this copying of data?
-            loc_layout.loc_items.extend(layer_loc_layout.iter().cloned());
+            // NOTE use of clone
+            loc_layout.loc_items.push(layer_loc_layout.clone());
         },
     }
+}
+
+pub fn choice_points(packet : &LayoutPacket) -> ChoicePoints {
+    let mut map = HashMap::new();
+
+    match packet {
+        Packet::Seq(packets) => {
+            for packet in packets {
+                map.extend(choice_points(packet))
+            }
+        },
+
+        Packet::Subcom(item, subcom) => {
+            map.insert(item.name.clone(), None);
+            for pair in subcom {
+                map.extend(choice_points(&pair.1))
+            }
+        },
+
+        Packet::Leaf(layer_loc_layout) => {
+        },
+    } 
+
+    map
 }
 
 #[cfg(test)]
@@ -383,8 +448,8 @@ mod test {
       let float64_value_le = decode_prim(&float64_le, &mut bytes);
 
       let enum_value_zero = decode_prim(&enum_prim, &mut bytes);
-      let enum_value_one = decode_prim(&enum_prim, &mut bytes);
-      let enum_value_two = decode_prim(&enum_prim, &mut bytes);
+      let enum_value_one  = decode_prim(&enum_prim, &mut bytes);
+      let enum_value_two  = decode_prim(&enum_prim, &mut bytes);
       let enum_value_five = decode_prim(&enum_prim, &mut bytes);
 
       assert!(byte_value == Value::U8(0xAA));

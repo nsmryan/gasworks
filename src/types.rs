@@ -286,6 +286,7 @@ pub enum Layout {
     Prim(Item),
     Seq(Vec<Layout>),
     All(Vec<Layout>),
+    Array(u64, Layout),
     // NOTE consider whether Placements still make sense.
     // they can be encoded by buffers and Alls
     // Placement(u64, Layout)

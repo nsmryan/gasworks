@@ -227,6 +227,10 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
             // jump forward past the largest layout
             bytes.set_position(max_loc);
         },
+
+        Layout::Array(size, layout)
+        {
+        }
         
         // NOTE - Bit fields currently do not support endianness choice
         //        bitreverse crate could help with this.

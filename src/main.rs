@@ -22,6 +22,7 @@ extern crate packet_tool;
 use packet_tool::*;
 use packet_tool::types::*;
 use packet_tool::csv::*;
+use packet_tool::decode::*;
 
 extern crate csv;
 

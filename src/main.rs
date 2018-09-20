@@ -124,6 +124,7 @@ main!(|args: Cli, log_level : verbosity| {
 
             // set up decoding structures
             let located = layout.locate();
+            println!("{:?}", located);
             // NOTE this assumes structures all have same size
             let num_bytes = located.num_bytes() as usize;
 

@@ -68,6 +68,9 @@ create an iterator for packet items for layout and loc packets.
   this would prevent us from building hash maps and then throwing
   them away all the time.
 
+report packet information-
+  sizes it can have, name/location/size of fields
+
 
 possible custom format:
 enum SecondaryHeaderPresent {
@@ -83,3 +86,21 @@ struct CcsdsHeader {
 } where {
   version = 0,
 }
+
+## Questions
+how to express fixed values, like CCSDS version is always 0.
+  these are both integrity checks, sometime sanity checks, and sometimes
+  indicate the contents of the packet (apids, for example).
+  these may be part of packet definitions, rather then layouts, and then
+  would be used to build protocols by finding unique combinations of values
+  that identify packets.
+
+  in that case, they would be validated during packet decoding, after
+  identification.
+
+
+There seems to be a split between layouts and locations, where you either
+  maintain the original structure of a packet or expand it out into a mapping
+  from names/pathes into fields.
+
+

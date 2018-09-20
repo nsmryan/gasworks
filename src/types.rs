@@ -245,9 +245,11 @@ impl Item {
   }
 }
 
+type LocPath = Vec<Name>;
+
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub struct LocItem {
-  pub name : Name,
+  pub name : LocPath,
   pub typ : Prim,
   pub loc : Loc,
 }
@@ -259,7 +261,7 @@ impl NumBytes for LocItem {
 }
 
 impl LocItem {
-  pub fn new(name : Name, typ : Prim, loc : Loc) -> LocItem {
+  pub fn new(name : LocPath, typ : Prim, loc : Loc) -> LocItem {
     LocItem{ name : name, typ : typ, loc : loc }
   }
 }
@@ -368,32 +370,46 @@ impl Layout {
   pub fn locate(&self) -> LocLayout {
     let mut loc = 0;
     let mut loc_items = Vec::new();
-    self.locate_loc(&mut loc_items, &mut loc);
+    let path = Vec::new();
+    self.locate_loc(&mut loc_items, &path, &mut loc);
 
     LocLayout { loc_items : loc_items }
   }
 
-  pub fn locate_loc(&self, loc_items : &mut Vec<LocItem>, loc : &mut Loc) {
+  pub fn locate_loc(&self,
+                    loc_items : &mut Vec<LocItem>,
+                    path : &LocPath,
+                    loc : &mut Loc) {
     match self {
         Layout::Prim(item) => {
+            let mut item_path = path.to_vec();
+            item_path.push(item.name.to_string());
+
             let typ = item.typ.clone();
-            loc_items.push(LocItem::new(item.name.to_string(), typ, *loc));
+
+            loc_items.push(LocItem::new(item_path, typ, *loc));
             *loc += item.typ.num_bytes();
         },
 
         Layout::Seq(name, layouts) => {
+            let mut seq_path = path.to_vec();
+            seq_path.push(name.to_string());
+
             for layout in layouts.iter() {
-                layout.locate_loc(loc_items, loc);
+                layout.locate_loc(loc_items, &seq_path, loc);
             }
         },
 
         Layout::All(name, layouts) => {
+            let mut all_path = path.to_vec();
+            all_path.push(name.to_string());
+
             let mut max_loc = *loc;
             let starting_loc = *loc;
 
             for layout in layouts.iter() {
                 *loc = starting_loc;
-                layout.locate_loc(loc_items, loc);
+                layout.locate_loc(loc_items, &all_path, loc);
 
                 // check if this layout is the largest so far
                 let new_loc = layout.num_bytes();
@@ -407,7 +423,13 @@ impl Layout {
 
         Layout::Array(name, size, layout) => {
             for index in 0 .. *size {
-                unimplemented!();
+                let mut array_path = path.to_vec();
+
+                // NOTE This is likely not the best way to do this
+                let mut array_name = format!("{}[{}]", name, index);
+                array_path.push(array_name);
+
+                layout.locate_loc(loc_items, &array_path, loc);
             }
         }
         
@@ -443,9 +465,9 @@ impl LayoutPacket {
 
             Packet::Subcom(item, pairs) => {
                 // NOTE use of clone
-                Packet::Subcom(LocItem::new(item.name.clone(), item.typ.clone(), 0),
+                Packet::Subcom(LocItem::new(vec!(item.name.clone()), item.typ.clone(), 0),
                                pairs.iter().map(|(item, packet)| {
-                                   (LocItem::new(item.name.clone(), item.typ.clone(), 0),
+                                   (LocItem::new(vec!(item.name.clone()), item.typ.clone(), 0),
                                     packet.locate())
                                }).collect()
                 )

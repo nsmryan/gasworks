@@ -1,10 +1,10 @@
 [package]
-name = "packet-tool"
+name = "gasworks"
 version = "0.1.0"
 authors = ["nsmryan <nsmryan@gmail.com>"]
 
 [lib]
-name="packet_tool"
+name="gasworks"
 path="src/lib.rs"
 test=true
 doc=true
@@ -21,5 +21,5 @@ serde= { version = "1", features = ["serde_derive"] }
 nom="4.0.0"
 
 [[bin]]
-name="packet-tool"
+name="gasworks"
 

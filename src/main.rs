@@ -18,11 +18,11 @@ use ron::de::*;
 //#[macro_use]
 extern crate serde;
 
-extern crate packet_tool;
-use packet_tool::*;
-use packet_tool::types::*;
-use packet_tool::csv::*;
-//use packet_tool::decode::*;
+extern crate gasworks;
+use gasworks::*;
+use gasworks::types::*;
+use gasworks::csv::*;
+//use gasworks::decode::*;
 
 extern crate csv;
 
@@ -141,7 +141,7 @@ main!(|args: Cli, log_level : verbosity| {
 
                     let record : Vec<String> =
                       points.iter().map(|point| {point.val.to_string()}).collect();
-                    writer.write_record(record);
+                    writer.write_record(record).unwrap();
                 }
 
                 // advance cursor to next structure

@@ -261,7 +261,7 @@ pub fn decode_loc_layout(loc_layout : &LocLayout, bytes : &mut Cursor<&[u8]>) ->
 
 pub fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point {
     bytes.set_position(loc_item.loc);
-    Point::new(loc_item.name.clone(), decode_prim(&loc_item.typ, bytes))
+    Point::new(loc_item.name.last().unwrap().clone(), decode_prim(&loc_item.typ, bytes))
 }
 
 pub fn decode_layoutpacket(layout_packet : &LayoutPacket,

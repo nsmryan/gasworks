@@ -1,4 +1,3 @@
-
 #[allow(unused_imports)]
 use std::collections::HashSet;
 #[allow(unused_imports)]
@@ -7,34 +6,21 @@ use std::collections::HashMap;
 use std::collections::BTreeMap;
 #[allow(unused_imports)]
 use std::iter::Iterator;
-
-extern crate bitreader;
-use bitreader::BitReader;
-
-extern crate bytes;
 #[allow(unused_imports)]
-use bytes::{Bytes, Buf};
+use std::io::{Cursor, Read};
 
 extern crate byteorder;
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, BigEndian, ByteOrder};
 
-extern crate ron;
-
-#[macro_use]
-extern crate serde;
-
+extern crate bytes;
 #[allow(unused_imports)]
-use std::io::{Cursor, Read};
+use bytes::{Bytes, Buf};
 
-pub mod types;
+extern crate bitreader;
+use bitreader::BitReader;
+
 use types::*;
-
-pub mod decode;
-use decode::*;
-
-pub mod csv;
-// use csv::*;
 
 
 pub fn decode_to_map(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
@@ -206,19 +192,23 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
         },
 
         Layout::Seq(name, layouts) => {
+            let mut section = ValueMap::new(BTreeMap::new());
             for layout in layouts.iter() {
-                decode_layout(layout, bytes, map);
+                decode_layout(layout, bytes, &mut section);
             }
+            map.value_map.insert(name.to_string(), ValueEntry::Section(section));
         },
 
         Layout::All(name, layouts) => {
+            let mut all = ValueMap::new(BTreeMap::new());
+
             let mut max_loc = bytes.position();
             let starting_loc = bytes.position();
 
             for layout in layouts.iter() {
                 // jump back to the start and decode next layout
                 bytes.set_position(starting_loc);
-                decode_layout(layout, bytes, map);
+                decode_layout(layout, bytes, &mut all);
 
                 // check if this layout is the largest so far
                 let new_loc = bytes.position();
@@ -229,20 +219,15 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
 
             // jump forward past the largest layout
             bytes.set_position(max_loc);
+
+            map.value_map.insert(name.to_string(),
+                                 ValueEntry::Section(all));
         },
 
         Layout::Array(name, size, layout) => {
-            let mut array = Vec::new();
 
-            for _ in 0 .. *size {
-                let mut value_map = ValueMap::new(BTreeMap::new());
-                decode_layout(layout, bytes, &mut value_map);
-                array.push(value_map);
-            }
-
-            map.value_map.insert(name.to_string(), ValueEntry::Array(array));
         }
-
+        
         // NOTE - Bit fields currently do not support endianness choice
         //        bitreverse crate could help with this.
         Layout::Bits(bits) => {
@@ -299,75 +284,6 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
             map.insert(item.name.clone(), decode_prim(&item.typ, bytes));
         },
     }
-}
-
-pub fn identify_locpacket(packet : &LocPacket, bytes : &mut Cursor<&[u8]>) -> LocLayout
-{
-    let locs = Vec::new();
-
-    let mut loc_layout = LocLayout{ loc_items : locs};
-
-    identify_locpacket_helper(packet, bytes, &mut loc_layout);
-
-    loc_layout
-}
-
-fn identify_locpacket_helper(packet : &LocPacket, 
-                             bytes : &mut Cursor<&[u8]>,
-                             loc_layout : &mut LocLayout) 
-{
-    match packet {
-        Packet::Seq(packets) => {
-            for packet in packets {
-                identify_locpacket_helper(packet, bytes, loc_layout);
-            }
-        },
-
-        Packet::Subcom(item, subcom) => {
-            // NOTE we are decoding items here and throwing them away. the assumption is that
-            // we don't decode many items, and don't need to keep our work.
-            // we re-decode items even if they are used in other iterations of this loop!
-            let value = decode_loc_item(&item, bytes);
-
-            for (item_key, packet_value) in subcom {
-                let item_value = decode_loc_item(item_key, bytes);
-
-                if value == item_value {
-                    identify_locpacket_helper(packet_value, bytes, loc_layout);
-                    break;
-                }
-            }
-        },
-
-        Packet::Leaf(layer_loc_layout) => {
-            // NOTE use of clone
-            loc_layout.loc_items.push(layer_loc_layout.clone());
-        },
-    }
-}
-
-pub fn choice_points(packet : &LayoutPacket) -> ChoicePoints {
-    let mut map = HashMap::new();
-
-    match packet {
-        Packet::Seq(packets) => {
-            for packet in packets {
-                map.extend(choice_points(packet))
-            }
-        },
-
-        Packet::Subcom(item, subcom) => {
-            map.insert(item.name.clone(), None);
-            for pair in subcom {
-                map.extend(choice_points(&pair.1))
-            }
-        },
-
-        Packet::Leaf(layer_loc_layout) => {
-        },
-    } 
-
-    map
 }
 
 #[cfg(test)]

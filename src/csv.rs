@@ -18,7 +18,7 @@ use types::*;
 pub fn valuemap_csv(map : &ValueMap,
                     writer : &mut csv::Writer<File>)
 {
-    writer.write_record(map.values().map(|value| {value.to_string()}));
+    writer.write_record(map.values().iter().map(|value| {value.to_string()}));
 }
 
 pub fn valuemap_csvheader(layout : &Layout,

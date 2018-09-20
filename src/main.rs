@@ -12,16 +12,17 @@ use std::fs::File;
 use quicli::prelude::*;
 
 extern crate ron;
-use ron::ser::*;
+//use ron::ser::*;
 use ron::de::*;
 
-#[macro_use]
+//#[macro_use]
 extern crate serde;
 
 extern crate packet_tool;
 use packet_tool::*;
 use packet_tool::types::*;
 use packet_tool::csv::*;
+//use packet_tool::decode::*;
 
 extern crate csv;
 
@@ -98,7 +99,7 @@ main!(|args: Cli, log_level : verbosity| {
         Ok(layout) => {
             // Open binary file
             let mut byte_vec = Vec::new();
-            File::open(args.infile).unwrap().read_to_end(&mut byte_vec);
+            File::open(args.infile).unwrap().read_to_end(&mut byte_vec).unwrap();
             let mut bytes = Cursor::new(byte_vec.as_slice());
 
             // Write CSV header

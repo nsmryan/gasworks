@@ -284,9 +284,9 @@ impl NumBytes for LocLayout {
 #[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub enum Layout {
     Prim(Item),
-    Seq(Vec<Layout>),
-    All(Vec<Layout>),
-    Array(u64, Layout),
+    Seq(Name, Vec<Layout>),
+    All(Name, Vec<Layout>),
+    Array(Name, u64, Box<Layout>),
     // NOTE consider whether Placements still make sense.
     // they can be encoded by buffers and Alls
     // Placement(u64, Layout)
@@ -300,7 +300,7 @@ impl NumBytes for Layout {
         item.num_bytes()
       }
 
-      Layout::Seq(layouts) => {
+      Layout::Seq(name, layouts) => {
         let mut num_bytes = 0;
         // NOTE could use a fold here
         for layout in layouts.iter() {
@@ -309,13 +309,17 @@ impl NumBytes for Layout {
         num_bytes
       },
 
-      Layout::All(layouts) => {
+      Layout::All(name, layouts) => {
         let mut num_bytes = 0;
         for layout in layouts.iter() {
           num_bytes = cmp::max(num_bytes, layout.num_bytes())
         }
         num_bytes
       },
+
+      Layout::Array(_, size, layout) => {
+          size * layout.num_bytes()
+      }
 
       Layout::Bits(bit_prim) => {
         bit_prim.num_bytes()
@@ -325,6 +329,8 @@ impl NumBytes for Layout {
 }
 
 impl Layout {
+  // NOTE the section/all/array name is not inserted here, only
+  // primitives get added.
   pub fn names(&self) -> HashSet<&Name> {
     let mut names : HashSet<&Name> = HashSet::new();
 
@@ -333,17 +339,21 @@ impl Layout {
         names.insert(name);
       }
 
-      Layout::Seq(layouts) => {
+      Layout::Seq(name, layouts) => {
         for layout in layouts.iter() {
           names.extend(layout.names());
         }
       },
 
-      Layout::All(layouts) => {
+      Layout::All(name, layouts) => {
         for layout in layouts.iter() {
           names.extend(layout.names());
         }
       },
+
+      Layout::Array(name, size, layout) => {
+          names.extend(layout.names());
+      }
 
       Layout::Bits(bit_prims) => {
         for bit_prim in bit_prims.entries.iter() {
@@ -371,13 +381,13 @@ impl Layout {
             *loc += item.typ.num_bytes();
         },
 
-        Layout::Seq(layouts) => {
+        Layout::Seq(name, layouts) => {
             for layout in layouts.iter() {
                 layout.locate_loc(loc_items, loc);
             }
         },
 
-        Layout::All(layouts) => {
+        Layout::All(name, layouts) => {
             let mut max_loc = *loc;
             let starting_loc = *loc;
 
@@ -394,6 +404,12 @@ impl Layout {
 
             *loc = max_loc;
         },
+
+        Layout::Array(name, size, layout) => {
+            for index in 0 .. *size {
+                unimplemented!();
+            }
+        }
         
         Layout::Bits(_bits) => {
           // NOTE implement Bits into LocItems
@@ -438,7 +454,7 @@ impl LayoutPacket {
             Packet::Leaf(ref item) => {
                 // NOTE use of clone
                 let prim = Layout::Prim(item.clone());
-                let seq = Layout::Seq(vec!(prim));
+                let seq = Layout::Seq("".to_string(), vec!(prim));
                 // NOTE use of clone
                 Packet::Leaf(seq.locate().loc_items[0].clone())
             },
@@ -457,9 +473,9 @@ pub enum Protocol<T> {
     Leaf(T),
 }
 
-pub type LayoutMap = HashMap<Name, (Loc, Prim)>;
+pub type LayoutMap = BTreeMap<Name, (Loc, Prim)>;
 
-#[derive(PartialEq, PartialOrd, Debug)]
+#[derive(PartialEq, PartialOrd, Debug, Deserialize, Serialize)]
 pub enum Value {
     U8(u8),
     U16(u16),
@@ -511,20 +527,6 @@ impl fmt::Display for Value {
   }
 }
 
-#[derive(PartialEq, PartialOrd, Debug)]
-pub struct Point {
-    pub name : Name,
-    pub val : Value,
-}
-
-impl Point {
-    pub fn new(name : Name, val : Value) -> Point {
-        Point { name : name, val : val }
-    }
-}
-
-pub type ValueMap = HashMap<Name, Value>;
-
 impl Value {
     // NOTE this would work better with an IntValue separate
     // from the Value type
@@ -545,3 +547,58 @@ impl Value {
         }
     }
 }
+
+#[derive(PartialEq, PartialOrd, Debug)]
+pub struct Point {
+    pub name : Name,
+    pub val : Value,
+}
+
+impl Point {
+    pub fn new(name : Name, val : Value) -> Point {
+        Point { name : name, val : val }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
+pub struct ValueMap {
+    pub value_map : BTreeMap<Name, ValueEntry>,
+}
+
+impl ValueMap {
+    pub fn new(value_map : BTreeMap<Name, ValueEntry>) -> ValueMap {
+        ValueMap { value_map : value_map }
+    }
+
+    pub fn values(&self) -> Vec<&Value> {
+        let mut values = Vec::new();
+
+        for value_entry in self.value_map.values() {
+            match value_entry {
+                ValueEntry::Leaf(value) => {
+                    values.push(value);
+                }
+
+                ValueEntry::Section(value_map) => {
+                    values.extend(value_map.values());
+                }
+
+                ValueEntry::Array(array) => {
+                    for value_map in array {
+                        values.extend(value_map.values());
+                    }
+                }
+            }
+        }
+
+        values
+    }
+}
+
+#[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
+pub enum ValueEntry {
+    Leaf(Value),
+    Section(ValueMap),
+    Array(Vec<ValueMap>),
+}
+

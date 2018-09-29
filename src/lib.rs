@@ -320,7 +320,7 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
                     // TODO this should search the full map recursively.
                     // an optimization would be to preprocess the packet and keep track of
                     // a map of names that need to be used like this.
-                    num_elements = map.lookup(name.to_string()).unwrap().value() as usize;
+                    num_elements = map.lookup(&name.to_string()).unwrap().value() as usize;
                 }
             }
             for _ in 0..num_elements {

@@ -331,29 +331,30 @@ mod test {
 
       let value_map = decode_to_map(&layout, &mut bytes);
 
-      let value_bits0 = value_map.value_map.get(&"bits0".to_string()).unwrap();
-      assert!(*value_bits0 == ValueEntry::Leaf(Value::U8(0x01)));
+      println!("{:?}", value_map);
+      let value_bits0 = value_map.lookup(&"bits0".to_string()).unwrap();
+      assert!(value_bits0 == Value::U8(0x01));
 
-      let value_bits1 = value_map.value_map.get(&"bits1".to_string()).unwrap();
-      assert!(*value_bits1 == ValueEntry::Leaf(Value::U16(0x0234)));
+      let value_bits1 = value_map.lookup(&"bits1".to_string()).unwrap();
+      assert!(value_bits1 == Value::U16(0x0234));
 
-      let value_bits2 = value_map.value_map.get(&"bits2".to_string()).unwrap();
-      assert!(*value_bits2 == ValueEntry::Leaf(Value::U8(0x01)));
+      let value_bits2 = value_map.lookup(&"bits2".to_string()).unwrap();
+      assert!(value_bits2 == Value::U8(0x01));
 
-      let value_bits3 = value_map.value_map.get(&"bits3".to_string()).unwrap();
-      assert!(*value_bits3 == ValueEntry::Leaf(Value::U32(0x00001678)));
+      let value_bits3 = value_map.lookup(&"bits3".to_string()).unwrap();
+      assert!(value_bits3 == Value::U32(0x00001678));
 
-      let value_all0 = value_map.value_map.get(&"all0".to_string()).unwrap();
-      assert!(*value_all0 == ValueEntry::Leaf(Value::U8(0x12)));
+      let value_all0 = value_map.lookup(&"all0".to_string()).unwrap();
+      assert!(value_all0 == Value::U8(0x12));
 
-      let value_all1 = value_map.value_map.get(&"all1".to_string()).unwrap();
-      assert!(*value_all1 == ValueEntry::Leaf(Value::U32(0x12345678)));
+      let value_all1 = value_map.lookup(&"all1".to_string()).unwrap();
+      assert!(value_all1 == Value::U32(0x12345678));
 
-      let value_all2 = value_map.value_map.get(&"all2".to_string()).unwrap();
-      assert!(*value_all0 == ValueEntry::Leaf(Value::U8(0x12)));
+      let value_all2 = value_map.lookup(&"all2".to_string()).unwrap();
+      assert!(value_all0 == Value::U8(0x12));
 
-      let value_prim0 = value_map.value_map.get(&"prim0".to_string()).unwrap();
-      assert!(*value_prim0 == ValueEntry::Leaf(Value::U8(0xAA)));
+      let value_prim0 = value_map.lookup(&"prim0".to_string()).unwrap();
+      assert!(value_prim0 == Value::U8(0xAA));
     }
 
     #[test]

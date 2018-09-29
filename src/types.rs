@@ -628,8 +628,9 @@ impl ValueMap {
         values
     }
 
-    pub fn lookup(&self, name : Name) -> Option<Value> {
-        match self.value_map.get(&name) {
+    // NOTE this returns the Value, not a reference. is this okay?
+    pub fn lookup(&self, name : &Name) -> Option<Value> {
+        match self.value_map.get(name) {
             Some(ValueEntry::Leaf(value)) =>
                 return Some(value.clone()),
 
@@ -639,7 +640,7 @@ impl ValueMap {
                         ValueEntry::Leaf(_) => (),
 
                         ValueEntry::Section(value_map) => {
-                            match value_map.lookup(name.clone()) {
+                            match value_map.lookup(&name.clone()) {
                                 Some(value) => {
                                     return Some(value);
                                 }

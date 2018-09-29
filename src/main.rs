@@ -86,6 +86,15 @@ pub fn leaf<T>(item : T) -> Packet<T> {
     Packet::Leaf(item)
 }
 
+pub fn array_fixed<T>(size : usize, packet : Packet<T>) -> Packet<T> {
+    Packet::Array(ArrSize::Fixed(size), Box::new(packet))
+}
+
+pub fn array_var<T>(name : Name, packet : Packet<T>) -> Packet<T> {
+    Packet::Array(ArrSize::Var(name), Box::new(packet))
+}
+
+
 main!(|args: Cli, log_level : verbosity| {
     // Open output file
     let mut writer = csv::Writer::from_path(args.outfile).unwrap(); 

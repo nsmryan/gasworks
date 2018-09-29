@@ -110,12 +110,12 @@ main!(|args: Cli, log_level : verbosity| {
                            leaf(item("uint16_t", u16_be())),
                            leaf(item("uint32_t", u32_be()))));
 
-            let loc_packet : LocPacket = packet.locate();
-            let loc_layout = identify_locpacket(&loc_packet, &mut bytes);
-            let points = decode_loc_layout(&loc_layout, &mut bytes);
-            println!("printing loc packet");
-            println!("{:?}", points);
-            bytes.set_position(0);
+            //let loc_packet : LocPacket = packet.locate();
+            //let loc_layout = identify_locpacket(&loc_packet, &mut bytes);
+            //let points = decode_loc_layout(&loc_layout, &mut bytes);
+            //println!("printing loc packet");
+            //println!("{:?}", points);
+            //bytes.set_position(0);
 
             let map = decode_layoutpacket(&packet, &mut bytes);
             println!("printing layout packet");

@@ -302,7 +302,7 @@ impl NumBytes for Layout {
         item.num_bytes()
       }
 
-      Layout::Seq(name, layouts) => {
+      Layout::Seq(_, layouts) => {
         let mut num_bytes = 0;
         // NOTE could use a fold here
         for layout in layouts.iter() {
@@ -311,7 +311,7 @@ impl NumBytes for Layout {
         num_bytes
       },
 
-      Layout::All(name, layouts) => {
+      Layout::All(_, layouts) => {
         let mut num_bytes = 0;
         for layout in layouts.iter() {
           num_bytes = cmp::max(num_bytes, layout.num_bytes())
@@ -337,23 +337,23 @@ impl Layout {
     let mut names : HashSet<&Name> = HashSet::new();
 
     match self {
-      Layout::Prim(Item{name : name, typ : _}) => {
+      Layout::Prim(Item{name, typ : _}) => {
         names.insert(name);
       }
 
-      Layout::Seq(name, layouts) => {
+      Layout::Seq(_, layouts) => {
         for layout in layouts.iter() {
           names.extend(layout.names());
         }
       },
 
-      Layout::All(name, layouts) => {
+      Layout::All(_, layouts) => {
         for layout in layouts.iter() {
           names.extend(layout.names());
         }
       },
 
-      Layout::Array(name, size, layout) => {
+      Layout::Array(_, _, layout) => {
           names.extend(layout.names());
       }
 
@@ -442,11 +442,18 @@ impl Layout {
 }
 
 #[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
+pub enum ArrSize {
+    Fixed(usize),
+    Var(Name),
+}
+
+#[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub enum Packet<T> {
     Seq(Vec<Packet<T>>),
     // NOTE add back in multiple items here when needed. removed for simplicity.
     // Subcom(HashMap<Vec<Item>, Packet>),
     Subcom(T, Vec<(T, Packet<T>)>),
+    Array(ArrSize, Box<Packet<T>>),
     Leaf(T),
 }
 
@@ -457,6 +464,7 @@ pub type LayoutPacket = Packet<Item>;
 impl LayoutPacket {
     // NOTE this function does not work! it does not create the 
     // correct locations for LocItems!
+    /*
     pub fn locate(&self) -> LocPacket {
         match self {
             Packet::Seq(packets) => {
@@ -473,6 +481,9 @@ impl LayoutPacket {
                 )
             },
 
+            Packet::Array(size, packet) => {
+            }
+
             Packet::Leaf(ref item) => {
                 // NOTE use of clone
                 let prim = Layout::Prim(item.clone());
@@ -482,6 +493,7 @@ impl LayoutPacket {
             },
         }
     }
+    */
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -614,6 +626,40 @@ impl ValueMap {
         }
 
         values
+    }
+
+    pub fn lookup(&self, name : Name) -> Option<Value> {
+        match self.value_map.get(&name) {
+            Some(ValueEntry::Leaf(value)) =>
+                return Some(value.clone()),
+
+            None => {
+                for value_entry in self.value_map.values() {
+                    match value_entry {
+                        ValueEntry::Leaf(_) => (),
+
+                        ValueEntry::Section(value_map) => {
+                            match value_map.lookup(name.clone()) {
+                                Some(value) => {
+                                    return Some(value);
+                                }
+                                None => ()
+                            }
+                        },
+
+                        // if the name is in an array, it is not clear which one to choose,
+                        // so don't even look.
+                        ValueEntry::Array(_) => {
+                            ()
+                        }
+                    }
+                }
+            }
+
+            _ => (),
+        }
+
+        return None;
     }
 }
 

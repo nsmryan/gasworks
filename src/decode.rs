@@ -280,6 +280,21 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
             }
         },
 
+        // NOTE Names are not unique if there are arrays
+        // may need to switch to ValueEntry map and preserve
+        // structure instead
+        Packet::Array(size, packet) => {
+            match size {
+                ArrSize::Fixed(n) => {
+                    unimplemented!();
+                }
+
+                ArrSize::Var(name) => {
+                    unimplemented!();
+                }
+            }
+        }
+
         Packet::Leaf(item) => {
             map.insert(item.name.clone(), decode_prim(&item.typ, bytes));
         },
@@ -302,7 +317,7 @@ mod test {
       let all_vec = vec![Layout::Prim(Item::new("all0".to_string(), Prim::Int(IntPrim::u8_be()))),
                          Layout::Prim(Item::new("all1".to_string(), Prim::Int(IntPrim::u32_be()))),
                          Layout::Prim(Item::new("all2".to_string(), Prim::Int(IntPrim::u8_be())))];
-      let all_layout = Layout::All(all_vec);
+      let all_layout = Layout::All("all".to_string(), all_vec);
 
       let prim_layout = Layout::Prim(Item::new("prim0".to_string(), Prim::Int(IntPrim::u8_be())));
 
@@ -312,33 +327,33 @@ mod test {
                   ];
       let mut bytes = Cursor::new(v.as_slice());
 
-      let layout = Layout::Seq(vec![bits_layout, all_layout , prim_layout]);
+      let layout = Layout::Seq("seq".to_string(), vec![bits_layout, all_layout , prim_layout]);
 
       let value_map = decode_to_map(&layout, &mut bytes);
 
-      let value_bits0 = value_map.get(&"bits0".to_string()).unwrap();
-      assert!(*value_bits0 == Value::U8(0x01));
+      let value_bits0 = value_map.value_map.get(&"bits0".to_string()).unwrap();
+      assert!(*value_bits0 == ValueEntry::Leaf(Value::U8(0x01)));
 
-      let value_bits1 = value_map.get(&"bits1".to_string()).unwrap();
-      assert!(*value_bits1 == Value::U16(0x0234));
+      let value_bits1 = value_map.value_map.get(&"bits1".to_string()).unwrap();
+      assert!(*value_bits1 == ValueEntry::Leaf(Value::U16(0x0234)));
 
-      let value_bits2 = value_map.get(&"bits2".to_string()).unwrap();
-      assert!(*value_bits2 == Value::U8(0x01));
+      let value_bits2 = value_map.value_map.get(&"bits2".to_string()).unwrap();
+      assert!(*value_bits2 == ValueEntry::Leaf(Value::U8(0x01)));
 
-      let value_bits3 = value_map.get(&"bits3".to_string()).unwrap();
-      assert!(*value_bits3 == Value::U32(0x00001678));
+      let value_bits3 = value_map.value_map.get(&"bits3".to_string()).unwrap();
+      assert!(*value_bits3 == ValueEntry::Leaf(Value::U32(0x00001678)));
 
-      let value_all0 = value_map.get(&"all0".to_string()).unwrap();
-      assert!(*value_all0 == Value::U8(0x12));
+      let value_all0 = value_map.value_map.get(&"all0".to_string()).unwrap();
+      assert!(*value_all0 == ValueEntry::Leaf(Value::U8(0x12)));
 
-      let value_all1 = value_map.get(&"all1".to_string()).unwrap();
-      assert!(*value_all1 == Value::U32(0x12345678));
+      let value_all1 = value_map.value_map.get(&"all1".to_string()).unwrap();
+      assert!(*value_all1 == ValueEntry::Leaf(Value::U32(0x12345678)));
 
-      let value_all2 = value_map.get(&"all2".to_string()).unwrap();
-      assert!(*value_all0 == Value::U8(0x12));
+      let value_all2 = value_map.value_map.get(&"all2".to_string()).unwrap();
+      assert!(*value_all0 == ValueEntry::Leaf(Value::U8(0x12)));
 
-      let value_prim0 = value_map.get(&"prim0".to_string()).unwrap();
-      assert!(*value_prim0 == Value::U8(0xAA));
+      let value_prim0 = value_map.value_map.get(&"prim0".to_string()).unwrap();
+      assert!(*value_prim0 == ValueEntry::Leaf(Value::U8(0xAA)));
     }
 
     #[test]

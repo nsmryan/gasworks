@@ -205,7 +205,7 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
             map.value_map.insert(item.name.to_string(), ValueEntry::Leaf(value));
         },
 
-        Layout::Seq(name, layouts) => {
+        Layout::Seq(_, layouts) => {
             for layout in layouts.iter() {
                 decode_layout(layout, bytes, map);
             }
@@ -265,16 +265,17 @@ pub fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point
 }
 
 pub fn decode_layoutpacket(layout_packet : &LayoutPacket,
-                           bytes         : &mut Cursor<&[u8]>) -> HashMap<Name, Value> {
-    let mut map = HashMap::new();
+                           bytes         : &mut Cursor<&[u8]>) -> ValueMap {
+    let mut map = ValueMap::new(BTreeMap::new());
 
     decode_layoutpacket_helper(layout_packet, bytes, &mut map);
 
     map
 }
+
 pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
                                   bytes         : &mut Cursor<&[u8]>,
-                                  map           : &mut HashMap<Name, Value>) {
+                                  map           : &mut ValueMap) {
     match layout_packet {
         Packet::Seq(packets) => {
             for packet in packets {
@@ -283,20 +284,53 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
         },
 
         Packet::Subcom(item, subcom) => {
-            let value : Value = map[&item.name].clone();
+            let entry = map.value_map[&item.name].clone();
 
-            for (item_key, packet) in subcom {
-                let subcom_value = &map[&item_key.name].clone();
+            match entry {
+               ValueEntry::Leaf(value) => {
+                  for (item_key, packet) in subcom {
+                      let subcom_entry = &map.value_map[&item_key.name].clone();
+                      match subcom_entry {
+                         ValueEntry::Leaf(subcom_value) => {
+                             if value == *subcom_value {
+                                 decode_layoutpacket_helper(packet, bytes, map);
+                                 break;
+                             }
 
-                if value == *subcom_value {
-                    decode_layoutpacket_helper(packet, bytes, map);
-                    break;
-                }
+                         }
+
+                         _ => (),
+                      }
+                  }
+               },
+
+               // NOTE if the name refers to something else then a value, it is skipped
+               _ => ()
             }
         },
 
+        Packet::Array(size, packet) => {
+            let num_elements : usize;
+            match size {
+                ArrSize::Fixed(num) => {
+                    num_elements = *num;
+                }
+
+                ArrSize::Var(name) => {
+                    // TODO this should search the full map recursively.
+                    // an optimization would be to preprocess the packet and keep track of
+                    // a map of names that need to be used like this.
+                    num_elements = map.lookup(name.to_string()).unwrap().value() as usize;
+                }
+            }
+            for _ in 0..num_elements {
+              decode_layoutpacket_helper(packet, bytes, map);
+            }
+        }
+
         Packet::Leaf(item) => {
-            map.insert(item.name.clone(), decode_prim(&item.typ, bytes));
+            map.value_map.insert(item.name.clone(),
+                                 ValueEntry::Leaf(decode_prim(&item.typ, bytes)));
         },
     }
 }
@@ -339,6 +373,33 @@ fn identify_locpacket_helper(packet : &LocPacket,
             }
         },
 
+        // NOTE an optimization here would be to use a hashmap, or
+        // to keep only values used in decisions, determined beforehand.
+        Packet::Array(size, packet) => {
+            let mut num_elements : usize = 0;
+            match size {
+                ArrSize::Fixed(num) =>
+                    num_elements = *num,
+
+                ArrSize::Var(name)  => {
+                    for elem in loc_layout.loc_items.iter() {
+                        // NOTE matches the first item with the name
+                        // might need better matching
+                        if name == &elem.name[elem.name.len() - 1] {
+                            let point = decode_loc_item(&elem, bytes);
+                            num_elements = point.val.value() as usize;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // NOTE If Var, and name is not found, the array will be skipped
+            for _ in 0..num_elements {
+                identify_locpacket_helper(packet, bytes, loc_layout);
+            }
+        }
+
         Packet::Leaf(layer_loc_layout) => {
             // NOTE use of clone
             loc_layout.loc_items.push(layer_loc_layout.clone());
@@ -346,7 +407,14 @@ fn identify_locpacket_helper(packet : &LocPacket,
     }
 }
 
+// Find all locations in a packet where a choice is made based
+// on a value in the packet.
+// This results in a map which initially maps each telemetry point
+// name to None, but can be updated with particular values when
+// decoding a particular packet.
 pub fn choice_points(packet : &LayoutPacket) -> ChoicePoints {
+    // NOTE consider passing a single hashmap around instead
+    // of using 'extend' on subtree's choice points.
     let mut map = HashMap::new();
 
     match packet {
@@ -363,7 +431,19 @@ pub fn choice_points(packet : &LayoutPacket) -> ChoicePoints {
             }
         },
 
-        Packet::Leaf(layer_loc_layout) => {
+        Packet::Array(size, packet) => {
+            match size {
+                ArrSize::Var(name)  => {
+                    map.insert(name.clone(), None);
+                },
+
+                _ => (),
+            }
+            map.extend(choice_points(packet));
+        }
+
+        Packet::Leaf(_) => {
+            ()
         },
     } 
 
@@ -386,7 +466,7 @@ mod test {
       let all_vec = vec![Layout::Prim(Item::new("all0".to_string(), Prim::Int(IntPrim::u8_be()))),
                          Layout::Prim(Item::new("all1".to_string(), Prim::Int(IntPrim::u32_be()))),
                          Layout::Prim(Item::new("all2".to_string(), Prim::Int(IntPrim::u8_be())))];
-      let all_layout = Layout::All(all_vec);
+      let all_layout = Layout::All("all".to_string(), all_vec);
 
       let prim_layout = Layout::Prim(Item::new("prim0".to_string(), Prim::Int(IntPrim::u8_be())));
 
@@ -396,33 +476,33 @@ mod test {
                   ];
       let mut bytes = Cursor::new(v.as_slice());
 
-      let layout = Layout::Seq(vec![bits_layout, all_layout , prim_layout]);
+      let layout = Layout::Seq("seq".to_string(), vec![bits_layout, all_layout , prim_layout]);
 
       let value_map = decode_to_map(&layout, &mut bytes);
 
-      let value_bits0 = value_map.get(&"bits0".to_string()).unwrap();
-      assert!(*value_bits0 == Value::U8(0x01));
+      let value_bits0 = value_map.value_map.get(&"bits0".to_string()).unwrap();
+      assert!(*value_bits0 == ValueEntry::Leaf(Value::U8(0x01)));
 
-      let value_bits1 = value_map.get(&"bits1".to_string()).unwrap();
-      assert!(*value_bits1 == Value::U16(0x0234));
+      let value_bits1 = value_map.value_map.get(&"bits1".to_string()).unwrap();
+      assert!(*value_bits1 == ValueEntry::Leaf(Value::U16(0x0234)));
 
-      let value_bits2 = value_map.get(&"bits2".to_string()).unwrap();
-      assert!(*value_bits2 == Value::U8(0x01));
+      let value_bits2 = value_map.value_map.get(&"bits2".to_string()).unwrap();
+      assert!(*value_bits2 == ValueEntry::Leaf(Value::U8(0x01)));
 
-      let value_bits3 = value_map.get(&"bits3".to_string()).unwrap();
-      assert!(*value_bits3 == Value::U32(0x00001678));
+      let value_bits3 = value_map.value_map.get(&"bits3".to_string()).unwrap();
+      assert!(*value_bits3 == ValueEntry::Leaf(Value::U32(0x00001678)));
 
-      let value_all0 = value_map.get(&"all0".to_string()).unwrap();
-      assert!(*value_all0 == Value::U8(0x12));
+      let value_all0 = value_map.value_map.get(&"all0".to_string()).unwrap();
+      assert!(*value_all0 == ValueEntry::Leaf(Value::U8(0x12)));
 
-      let value_all1 = value_map.get(&"all1".to_string()).unwrap();
-      assert!(*value_all1 == Value::U32(0x12345678));
+      let value_all1 = value_map.value_map.get(&"all1".to_string()).unwrap();
+      assert!(*value_all1 == ValueEntry::Leaf(Value::U32(0x12345678)));
 
-      let value_all2 = value_map.get(&"all2".to_string()).unwrap();
-      assert!(*value_all0 == Value::U8(0x12));
+      let value_all2 = value_map.value_map.get(&"all2".to_string()).unwrap();
+      assert!(*value_all0 == ValueEntry::Leaf(Value::U8(0x12)));
 
-      let value_prim0 = value_map.get(&"prim0".to_string()).unwrap();
-      assert!(*value_prim0 == Value::U8(0xAA));
+      let value_prim0 = value_map.value_map.get(&"prim0".to_string()).unwrap();
+      assert!(*value_prim0 == ValueEntry::Leaf(Value::U8(0xAA)));
     }
 
     #[test]

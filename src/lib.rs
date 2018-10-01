@@ -1,4 +1,3 @@
-
 #[allow(unused_imports)]
 use std::collections::HashSet;
 #[allow(unused_imports)]
@@ -264,7 +263,7 @@ pub fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point
     Point::new(loc_item.name.last().unwrap().clone(), decode_prim(&loc_item.typ, bytes))
 }
 
-pub fn decode_layoutpacket(layout_packet : &LayoutPacket,
+pub fn decode_layoutpacket(layout_packet : &LayoutPacketDef,
                            bytes         : &mut Cursor<&[u8]>) -> ValueMap {
     let mut map = ValueMap::new(BTreeMap::new());
 
@@ -273,17 +272,17 @@ pub fn decode_layoutpacket(layout_packet : &LayoutPacket,
     map
 }
 
-pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
+pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacketDef,
                                   bytes         : &mut Cursor<&[u8]>,
                                   map           : &mut ValueMap) {
     match layout_packet {
-        Packet::Seq(packets) => {
+        PacketDef::Seq(packets) => {
             for packet in packets {
                 decode_layoutpacket_helper(packet, bytes, map);
             }
         },
 
-        Packet::Subcom(item, subcom) => {
+        PacketDef::Subcom(item, subcom) => {
             let entry = map.value_map[&item.name].clone();
 
             match entry {
@@ -309,7 +308,7 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
             }
         },
 
-        Packet::Array(size, packet) => {
+        PacketDef::Array(size, packet) => {
             let num_elements : usize;
             match size {
                 ArrSize::Fixed(num) => {
@@ -328,14 +327,14 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
             }
         }
 
-        Packet::Leaf(item) => {
+        PacketDef::Leaf(item) => {
             map.value_map.insert(item.name.clone(),
                                  ValueEntry::Leaf(decode_prim(&item.typ, bytes)));
         },
     }
 }
 
-pub fn identify_locpacket(packet : &LocPacket, bytes : &mut Cursor<&[u8]>) -> LocLayout
+pub fn identify_locpacket(packet : &LocPacketDef, bytes : &mut Cursor<&[u8]>) -> LocLayout
 {
     let locs = Vec::new();
 
@@ -346,18 +345,18 @@ pub fn identify_locpacket(packet : &LocPacket, bytes : &mut Cursor<&[u8]>) -> Lo
     loc_layout
 }
 
-fn identify_locpacket_helper(packet : &LocPacket, 
+fn identify_locpacket_helper(packet : &LocPacketDef, 
                              bytes : &mut Cursor<&[u8]>,
                              loc_layout : &mut LocLayout) 
 {
     match packet {
-        Packet::Seq(packets) => {
+        PacketDef::Seq(packets) => {
             for packet in packets {
                 identify_locpacket_helper(packet, bytes, loc_layout);
             }
         },
 
-        Packet::Subcom(item, subcom) => {
+        PacketDef::Subcom(item, subcom) => {
             // NOTE we are decoding items here and throwing them away. the assumption is that
             // we don't decode many items, and don't need to keep our work.
             // we re-decode items even if they are used in other iterations of this loop!
@@ -375,7 +374,7 @@ fn identify_locpacket_helper(packet : &LocPacket,
 
         // NOTE an optimization here would be to use a hashmap, or
         // to keep only values used in decisions, determined beforehand.
-        Packet::Array(size, packet) => {
+        PacketDef::Array(size, packet) => {
             let mut num_elements : usize = 0;
             match size {
                 ArrSize::Fixed(num) =>
@@ -400,7 +399,7 @@ fn identify_locpacket_helper(packet : &LocPacket,
             }
         }
 
-        Packet::Leaf(layer_loc_layout) => {
+        PacketDef::Leaf(layer_loc_layout) => {
             // NOTE use of clone
             loc_layout.loc_items.push(layer_loc_layout.clone());
         },
@@ -412,26 +411,26 @@ fn identify_locpacket_helper(packet : &LocPacket,
 // This results in a map which initially maps each telemetry point
 // name to None, but can be updated with particular values when
 // decoding a particular packet.
-pub fn choice_points(packet : &LayoutPacket) -> ChoicePoints {
+pub fn choice_points(packet : &LayoutPacketDef) -> ChoicePoints {
     // NOTE consider passing a single hashmap around instead
     // of using 'extend' on subtree's choice points.
     let mut map = HashMap::new();
 
     match packet {
-        Packet::Seq(packets) => {
+        PacketDef::Seq(packets) => {
             for packet in packets {
                 map.extend(choice_points(packet))
             }
         },
 
-        Packet::Subcom(item, subcom) => {
+        PacketDef::Subcom(item, subcom) => {
             map.insert(item.name.clone(), None);
             for pair in subcom {
                 map.extend(choice_points(&pair.1))
             }
         },
 
-        Packet::Array(size, packet) => {
+        PacketDef::Array(size, packet) => {
             match size {
                 ArrSize::Var(name)  => {
                     map.insert(name.clone(), None);
@@ -442,7 +441,7 @@ pub fn choice_points(packet : &LayoutPacket) -> ChoicePoints {
             map.extend(choice_points(packet));
         }
 
-        Packet::Leaf(_) => {
+        PacketDef::Leaf(_) => {
             ()
         },
     } 

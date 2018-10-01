@@ -43,28 +43,28 @@ pub fn item(name : &str, typ : Prim) -> Item {
     Item::new(name.to_string(), typ)
 }
 
-pub fn u8_be()  -> Prim { Prim::Int(IntPrim::u8_be()) }
-pub fn u8_le()  -> Prim { Prim::Int(IntPrim::u8_le()) }
-pub fn u16_be() -> Prim { Prim::Int(IntPrim::u16_be()) }
-pub fn u16_le() -> Prim { Prim::Int(IntPrim::u16_le()) }
-pub fn u32_be() -> Prim { Prim::Int(IntPrim::u32_be()) }
-pub fn u32_le() -> Prim { Prim::Int(IntPrim::u32_le()) }
-pub fn u64_be() -> Prim { Prim::Int(IntPrim::u64_be()) }
-pub fn u64_le() -> Prim { Prim::Int(IntPrim::u64_le()) }
+pub fn u8_be(name : Name)  -> Item { Item::new(name, Prim::Int(IntPrim::u8_be())) }
+pub fn u8_le(name : Name)  -> Item { Item::new(name, Prim::Int(IntPrim::u8_le())) }
+pub fn u16_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u16_be())) }
+pub fn u16_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u16_le())) }
+pub fn u32_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u32_be())) }
+pub fn u32_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u32_le())) }
+pub fn u64_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u64_be())) }
+pub fn u64_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u64_le())) }
 
-pub fn i8_be()  -> Prim { Prim::Int(IntPrim::i8_be()) }
-pub fn i8_le()  -> Prim { Prim::Int(IntPrim::i8_le()) }
-pub fn i16_be() -> Prim { Prim::Int(IntPrim::i16_be()) }
-pub fn i16_le() -> Prim { Prim::Int(IntPrim::i16_le()) }
-pub fn i32_be() -> Prim { Prim::Int(IntPrim::i32_be()) }
-pub fn i32_le() -> Prim { Prim::Int(IntPrim::i32_le()) }
-pub fn i64_be() -> Prim { Prim::Int(IntPrim::i64_be()) }
-pub fn i64_le() -> Prim { Prim::Int(IntPrim::i64_le()) }
+pub fn i8_be(name : Name)  -> Item { Item::new(name, Prim::Int(IntPrim::i8_be())) }
+pub fn i8_le(name : Name)  -> Item { Item::new(name, Prim::Int(IntPrim::i8_le())) }
+pub fn i16_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i16_be())) }
+pub fn i16_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i16_le())) }
+pub fn i32_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i32_be())) }
+pub fn i32_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i32_le())) }
+pub fn i64_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i64_be())) }
+pub fn i64_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i64_le())) }
 
-pub fn f32_be() -> Prim { Prim::Float(FloatPrim::f32_be()) }
-pub fn f32_le() -> Prim { Prim::Float(FloatPrim::f32_le()) }
-pub fn f64_be() -> Prim { Prim::Float(FloatPrim::f64_be()) }
-pub fn f64_le() -> Prim { Prim::Float(FloatPrim::f64_le()) }
+pub fn f32_be(name : Name) -> Item { Item::new(name, Prim::Float(FloatPrim::f32_be())) }
+pub fn f32_le(name : Name) -> Item { Item::new(name, Prim::Float(FloatPrim::f32_le())) }
+pub fn f64_be(name : Name) -> Item { Item::new(name, Prim::Float(FloatPrim::f64_be())) }
+pub fn f64_le(name : Name) -> Item { Item::new(name, Prim::Float(FloatPrim::f64_le())) }
 
 pub fn val_u8  (value : u8)  -> Value { Value::U8(value)  }
 pub fn val_u16 (value : u16) -> Value { Value::U16(value) }
@@ -78,21 +78,52 @@ pub fn val_f32 (value : f32) -> Value { Value::F32(value) }
 pub fn val_f64 (value : f64) -> Value { Value::F64(value) }
 pub fn val_enum(name : Name, value : i64) -> Value { Value::Enum(name, value) }
 
-pub fn seq<T>(packets : Vec<Packet<T>>) -> Packet<T> {
-    Packet::Seq(packets)
+pub fn seq<T>(packets : Vec<PacketDef<T>>) -> PacketDef<T> {
+    PacketDef::Seq(packets)
 }
 
-pub fn leaf<T>(item : T) -> Packet<T> {
-    Packet::Leaf(item)
+pub fn leaf<T>(item : T) -> PacketDef<T> {
+    PacketDef::Leaf(item)
 }
 
-pub fn array_fixed<T>(size : usize, packet : Packet<T>) -> Packet<T> {
-    Packet::Array(ArrSize::Fixed(size), Box::new(packet))
+pub fn array_fixed<T>(size : usize, packet : PacketDef<T>) -> PacketDef<T> {
+    PacketDef::Array(ArrSize::Fixed(size), Box::new(packet))
 }
 
-pub fn array_var<T>(name : Name, packet : Packet<T>) -> Packet<T> {
-    Packet::Array(ArrSize::Var(name), Box::new(packet))
+pub fn array_var<T>(name : Name, packet : PacketDef<T>) -> PacketDef<T> {
+    PacketDef::Array(ArrSize::Var(name), Box::new(packet))
 }
+
+//const JceTlm : PacketDef
+//  = seq(vec!(leaf(Layout::Prim(Item::new("sync", u16_be()))),
+//             leaf(Layout::Prim(Item::new("id", u16_be()))),
+//             leaf(Layout::Prim(Item::new("length", u16_be()))),
+//             leaf(Layout::Prim(Item::new("sequence", u16_be()))),
+//             leaf(Layout::Prim(Item::new("data", u16_be())))));
+//
+//const JceTlm : PacketDef
+//  = seq(vec!(u16_be("sync"),
+//             u16_be("id"),
+//             u16_be("length"),
+//             u16_be("sequence"),
+//             u16_be("data")));
+//
+//const JceTlm : PacketDef
+//  = seq!(sync     : u16_be,
+//         id       : u16_be,
+//         length   : u16_be,
+//         sequence : u16_be,
+//         seq!(
+//         )
+//    );
+//
+//const JceTlm : PacketDef =
+//  packet!(seq(header, [sync     : u16_be,
+//                       id       : u16_be,
+//                       length   : u16_be,
+//                       sequence : u16_be]),
+//          seq()
+//  );
 
 
 main!(|args: Cli, log_level : verbosity| {
@@ -114,12 +145,12 @@ main!(|args: Cli, log_level : verbosity| {
             // Write CSV header
             valuemap_csvheader(&layout, &mut writer);
 
-            let packet : LayoutPacket
-                = seq(vec!(leaf(item("uint8_t", u8_be())),
-                           leaf(item("uint16_t", u16_be())),
-                           leaf(item("uint32_t", u32_be()))));
+            let packet : LayoutPacketDef
+                = seq(vec!(leaf(u8_be("uint8_t".to_string())),
+                           leaf(u16_be("uint16_t".to_string())),
+                           leaf(u32_be("uint32_t".to_string()))));
 
-            //let loc_packet : LocPacket = packet.locate();
+            //let loc_packet : LocPacketDef = packet.locate();
             //let loc_layout = identify_locpacket(&loc_packet, &mut bytes);
             //let points = decode_loc_layout(&loc_layout, &mut bytes);
             //println!("printing loc packet");

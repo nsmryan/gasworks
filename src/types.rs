@@ -448,32 +448,41 @@ pub enum ArrSize {
 }
 
 #[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
-pub enum Packet<T> {
-    Seq(Vec<Packet<T>>),
+pub enum PacketDef<T> {
+    Seq(Vec<PacketDef<T>>),
     // NOTE add back in multiple items here when needed. removed for simplicity.
-    // Subcom(HashMap<Vec<Item>, Packet>),
-    Subcom(T, Vec<(T, Packet<T>)>),
-    Array(ArrSize, Box<Packet<T>>),
+    // Subcom(HashMap<Vec<Item>, PacketDef>),
+    Subcom(T, Vec<(T, PacketDef<T>)>),
+    Array(ArrSize, Box<PacketDef<T>>),
     Leaf(T),
 }
 
-pub type LocPacket = Packet<LocItem>;
+#[derive(PartialEq, Debug, Deserialize, Serialize)]
+pub struct Packet {
+    packet : LayoutPacketDef,
+    required : HashMap<Name, Value>,
+    //limits : HashMap<Name, Limit>
+    //expected : HashMap<Name, Value>,
+    //derived : HashMap<Name, Expr>,
+}
 
-pub type LayoutPacket = Packet<Item>;
+pub type LocPacketDef = PacketDef<LocItem>;
 
-impl LayoutPacket {
+pub type LayoutPacketDef = PacketDef<Item>;
+
+impl LayoutPacketDef {
     // NOTE this function does not work! it does not create the 
     // correct locations for LocItems!
     /*
-    pub fn locate(&self) -> LocPacket {
+    pub fn locate(&self) -> LocPacketDef {
         match self {
-            Packet::Seq(packets) => {
-                Packet::Seq(packets.iter().map(|packet| {packet.locate()}).collect())
+            PacketDef::Seq(packets) => {
+                PacketDef::Seq(packets.iter().map(|packet| {packet.locate()}).collect())
             },
 
-            Packet::Subcom(item, pairs) => {
+            PacketDef::Subcom(item, pairs) => {
                 // NOTE use of clone
-                Packet::Subcom(LocItem::new(vec!(item.name.clone()), item.typ.clone(), 0),
+                PacketDef::Subcom(LocItem::new(vec!(item.name.clone()), item.typ.clone(), 0),
                                pairs.iter().map(|(item, packet)| {
                                    (LocItem::new(vec!(item.name.clone()), item.typ.clone(), 0),
                                     packet.locate())
@@ -481,15 +490,15 @@ impl LayoutPacket {
                 )
             },
 
-            Packet::Array(size, packet) => {
+            PacketDef::Array(size, packet) => {
             }
 
-            Packet::Leaf(ref item) => {
+            PacketDef::Leaf(ref item) => {
                 // NOTE use of clone
                 let prim = Layout::Prim(item.clone());
                 let seq = Layout::Seq("".to_string(), vec!(prim));
                 // NOTE use of clone
-                Packet::Leaf(seq.locate().loc_items[0].clone())
+                PacketDef::Leaf(seq.locate().loc_items[0].clone())
             },
         }
     }

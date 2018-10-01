@@ -249,7 +249,7 @@ pub fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point
     Point::new(loc_item.name.last().unwrap().clone(), decode_prim(&loc_item.typ, bytes))
 }
 
-pub fn decode_layoutpacket(layout_packet : &LayoutPacket,
+pub fn decode_layoutpacket(layout_packet : &LayoutPacketDef,
                            bytes         : &mut Cursor<&[u8]>) -> HashMap<Name, Value> {
     let mut map = HashMap::new();
 
@@ -257,17 +257,17 @@ pub fn decode_layoutpacket(layout_packet : &LayoutPacket,
 
     map
 }
-pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
+pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacketDef,
                                   bytes         : &mut Cursor<&[u8]>,
                                   map           : &mut HashMap<Name, Value>) {
     match layout_packet {
-        Packet::Seq(packets) => {
+        PacketDef::Seq(packets) => {
             for packet in packets {
                 decode_layoutpacket_helper(packet, bytes, map);
             }
         },
 
-        Packet::Subcom(item, subcom) => {
+        PacketDef::Subcom(item, subcom) => {
             let value : Value = map[&item.name].clone();
 
             for (item_key, packet) in subcom {
@@ -283,7 +283,7 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
         // NOTE Names are not unique if there are arrays
         // may need to switch to ValueEntry map and preserve
         // structure instead
-        Packet::Array(size, packet) => {
+        PacketDef::Array(size, packet) => {
             match size {
                 ArrSize::Fixed(n) => {
                     unimplemented!();
@@ -295,7 +295,7 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacket,
             }
         }
 
-        Packet::Leaf(item) => {
+        PacketDef::Leaf(item) => {
             map.insert(item.name.clone(), decode_prim(&item.typ, bytes));
         },
     }

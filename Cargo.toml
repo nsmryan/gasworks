@@ -10,16 +10,21 @@ test=true
 doc=true
 
 [dependencies]
-byteorder="1.2.6"
-bytes="0.4.10"
-bit_reverse="0.1.7"
-bitreader="0.3.1"
-quicli="0.3.0"
-csv="1.0.1"
-ron="0.4.0"
-serde= { version = "1", features = ["serde_derive"] }
-nom="4.0.0"
+byteorder = "1.2.6"
+bytes = "0.4.10"
+bit_reverse = "0.1.7"
+bitreader = "0.3.1"
+quicli = "0.3.0"
+csv = "1.0.1"
+ron = "0.4.0"
+serde =  { version  =  "1", features  =  ["serde_derive"] }
+nom = "4.0.0"
+memmap = "0.7"
+flame = { version = "0.2", optional = true }
 
 [[bin]]
 name="gasworks"
+
+[features]
+profile = ["flame"]
 

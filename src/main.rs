@@ -1,3 +1,8 @@
+extern crate memmap;
+extern crate csv;
+extern crate serde;
+#[cfg(feature = "profile")]extern crate flame;
+extern crate gasworks;
 
 #[allow(unused_imports)]
 use std::collections::HashMap;
@@ -11,25 +16,15 @@ use std::fs::File;
 #[macro_use] extern crate quicli;
 use quicli::prelude::*;
 
-extern crate ron;
-//use ron::ser::*;
-use ron::de::*;
+use memmap::{ MmapOptions };
 
-//#[macro_use]
-extern crate serde;
-
-extern crate gasworks;
 use gasworks::*;
 use gasworks::types::*;
 use gasworks::csv::*;
-//use gasworks::decode::*;
-
-extern crate csv;
 
 
 #[derive(Debug, StructOpt)]
-struct Cli { format : String,
-
+struct Cli {
     infile : String,
 
     outfile : String,
@@ -43,28 +38,28 @@ pub fn item(name : &str, typ : Prim) -> Item {
     Item::new(name.to_string(), typ)
 }
 
-pub fn u8_be(name : Name)  -> Item { Item::new(name, Prim::Int(IntPrim::u8_be())) }
-pub fn u8_le(name : Name)  -> Item { Item::new(name, Prim::Int(IntPrim::u8_le())) }
-pub fn u16_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u16_be())) }
-pub fn u16_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u16_le())) }
-pub fn u32_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u32_be())) }
-pub fn u32_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u32_le())) }
-pub fn u64_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u64_be())) }
-pub fn u64_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::u64_le())) }
+pub fn u8_be(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u8_be()))) }
+pub fn u8_le(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u8_le()))) }
+pub fn u16_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u16_be()))) }
+pub fn u16_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u16_le()))) }
+pub fn u32_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u32_be()))) }
+pub fn u32_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u32_le()))) }
+pub fn u64_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u64_be()))) }
+pub fn u64_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u64_le()))) }
 
-pub fn i8_be(name : Name)  -> Item { Item::new(name, Prim::Int(IntPrim::i8_be())) }
-pub fn i8_le(name : Name)  -> Item { Item::new(name, Prim::Int(IntPrim::i8_le())) }
-pub fn i16_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i16_be())) }
-pub fn i16_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i16_le())) }
-pub fn i32_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i32_be())) }
-pub fn i32_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i32_le())) }
-pub fn i64_be(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i64_be())) }
-pub fn i64_le(name : Name) -> Item { Item::new(name, Prim::Int(IntPrim::i64_le())) }
+pub fn i8_be(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i8_be()))) }
+pub fn i8_le(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i8_le()))) }
+pub fn i16_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i16_be()))) }
+pub fn i16_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i16_le()))) }
+pub fn i32_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i32_be()))) }
+pub fn i32_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i32_le()))) }
+pub fn i64_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i64_be()))) }
+pub fn i64_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i64_le()))) }
 
-pub fn f32_be(name : Name) -> Item { Item::new(name, Prim::Float(FloatPrim::f32_be())) }
-pub fn f32_le(name : Name) -> Item { Item::new(name, Prim::Float(FloatPrim::f32_le())) }
-pub fn f64_be(name : Name) -> Item { Item::new(name, Prim::Float(FloatPrim::f64_be())) }
-pub fn f64_le(name : Name) -> Item { Item::new(name, Prim::Float(FloatPrim::f64_le())) }
+pub fn f32_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f32_be()))) }
+pub fn f32_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f32_le()))) }
+pub fn f64_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f64_be()))) }
+pub fn f64_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f64_le()))) }
 
 pub fn val_u8  (value : u8)  -> Value { Value::U8(value)  }
 pub fn val_u16 (value : u16) -> Value { Value::U16(value) }
@@ -94,109 +89,130 @@ pub fn array_var<T>(name : Name, packet : PacketDef<T>) -> PacketDef<T> {
     PacketDef::Array(ArrSize::Var(name), Box::new(packet))
 }
 
-//const JceTlm : PacketDef
-//  = seq(vec!(leaf(Layout::Prim(Item::new("sync", u16_be()))),
-//             leaf(Layout::Prim(Item::new("id", u16_be()))),
-//             leaf(Layout::Prim(Item::new("length", u16_be()))),
-//             leaf(Layout::Prim(Item::new("sequence", u16_be()))),
-//             leaf(Layout::Prim(Item::new("data", u16_be())))));
-//
-//const JceTlm : PacketDef
-//  = seq(vec!(u16_be("sync"),
-//             u16_be("id"),
-//             u16_be("length"),
-//             u16_be("sequence"),
-//             u16_be("data")));
-//
-//const JceTlm : PacketDef
-//  = seq!(sync     : u16_be,
-//         id       : u16_be,
-//         length   : u16_be,
-//         sequence : u16_be,
-//         seq!(
-//         )
-//    );
-//
-//const JceTlm : PacketDef =
-//  packet!(seq(header, [sync     : u16_be,
-//                       id       : u16_be,
-//                       length   : u16_be,
-//                       sequence : u16_be]),
-//          seq()
-//  );
 
-
-main!(|args: Cli, log_level : verbosity| {
+fn main_fn(args : Cli) -> Result<()>
+{
     // Open output file
     let mut writer = csv::Writer::from_path(args.outfile).unwrap(); 
 
-    // Open format file
-    let layout_string = File::open(args.format).expect("could not read format file!");
+    let vn200_tlm : LayoutPacketDef = 
+      seq(vec!(seq(vec!(u8_be("sync"),
+                        u8_le("groups"),
+                        u16_le("group1Flags"),
+                        u16_le("group3Flags"),
+                        u16_le("group4Flags"),
+                        u16_le("group5Flags"),
+                        u16_le("group6Flags")
+                        )
+                   ),
 
-    // read format file
-    match from_reader(layout_string)
-    {
-        Ok(layout) => {
-            // Open binary file
-            let mut byte_vec = Vec::new();
-            File::open(args.infile).unwrap().read_to_end(&mut byte_vec).unwrap();
-            let mut bytes = Cursor::new(byte_vec.as_slice());
+               seq(vec!(u64_le("timeSinceStartup"),
+                        u64_le("timeGPS"),
+                        f32_le("yawPitchRoll[0]"),
+                        f32_le("yawPitchRoll[1]"),
+                        f32_le("yawPitchRoll[2]"),
+                        f32_le("angularRate[0]"),
+                        f32_le("angularRate[1]"),
+                        f32_le("angularRate[2]"),
+                        f64_le("position[0]"),
+                        f64_le("position[1]"),
+                        f64_le("position[2]"),
+                        f32_le("velocity[0]"),
+                        f32_le("velocity[1]"),
+                        f32_le("velocity[2]"),
+                        u16_le("insStatus")
+                        )
+                   ),
 
-            // Write CSV header
-            valuemap_csvheader(&layout, &mut writer);
+               seq(vec!(f32_le("temperature"),
+                        f32_le("pressure"),
+                        u16_le("sensor_status"),
+                        u8_le("nGpsSats"),
+                        u8_le("gpsFix"),
+                        f64_le("gpsPos[0]"),
+                        f64_le("gpsPos[1]"),
+                        f64_le("gpsPos[2]"),
+                        f32_le("gpsUncert[0]"),
+                        f32_le("gpsUncert[2]"),
+                        f32_le("gpsUncert[2]"),
+                        u16_le("vpeStatus"),
+                        f32_le("insPosUncertainty"),
+                        f32_le("insVelUncertainty"),
+                        u16_le("crc16")
+                        )
+                   ),
 
-            let packet : LayoutPacketDef
-                = seq(vec!(leaf(u8_be("uint8_t".to_string())),
-                           leaf(u16_be("uint16_t".to_string())),
-                           leaf(u32_be("uint32_t".to_string()))));
+               u16_le("ccsds_crc16")
+              )
+          );
+    
 
-            //let loc_packet : LocPacketDef = packet.locate();
-            //let loc_layout = identify_locpacket(&loc_packet, &mut bytes);
-            //let points = decode_loc_layout(&loc_layout, &mut bytes);
-            //println!("printing loc packet");
-            //println!("{:?}", points);
-            //bytes.set_position(0);
+    // Open binary file
+    let file = File::open(args.infile)?;
+    let mmap = unsafe { MmapOptions::new().map(&file)? };
+    let length = mmap.len();
+    //File::open(args.infile).unwrap().read_to_end(&mut byte_vec).unwrap();
+    let mut bytes = Cursor::new(mmap);
 
-            let map = decode_layoutpacket(&packet, &mut bytes);
-            println!("printing layout packet");
-            println!("{:?}", map);
-            bytes.set_position(0);
+    let packet : LayoutPacketDef = vn200_tlm;
 
-            // set up decoding structures
-            let located = layout.locate();
-            println!("{:?}", located);
-            // NOTE this assumes structures all have same size
-            let num_bytes = located.num_bytes() as usize;
+    // Write CSV header
+    layoutpacket_csvheader(&packet, &mut writer);
 
-            // Decode file and write out CSV
-            // NOTE assumes correctly formatted file!
-            while bytes.position() < byte_vec.len() as u64 {
-                let position = bytes.position() as usize;
+    let num_bytes = packet.num_bytes();
+    println!("num_bytes = {}", num_bytes);
 
-                {
-                    let layout_bytes = bytes.get_ref();
+    let names = packet.names();
 
-                    let layout_bytes = &layout_bytes[position .. (position + num_bytes)];
+    let mut record : Vec<String> = Vec::with_capacity(names.len());
+    for _ in 0..record.capacity() {
+        record.push(String::with_capacity(64));
+    }
 
-                    let points = decode_loc_layout(&located, &mut Cursor::new(layout_bytes));
+    #[cfg(feature = "profile")] flame::start("main loop");
 
-                    let record : Vec<String> =
-                      points.iter().map(|point| {point.val.to_string()}).collect();
-                    writer.write_record(record).unwrap();
-                }
+    // Decode file and write out CSV
+    while (bytes.position() + num_bytes) < length as u64 {
+        let position = bytes.position() as usize;
 
-                // advance cursor to next structure
-                bytes.set_position((position + num_bytes) as u64);
-            }
+        {
+            let layout_bytes = bytes.get_ref();
 
-            // println!("{}", to_string_pretty(&layout, Default::default()).expect("couldn't serialize layout!"));
+            let layout_bytes = &layout_bytes[position .. (position + num_bytes as usize)];
 
-            // println!("{:?}", layout.names());
-        },
+            #[cfg(feature = "profile")] flame::start("decode packet");
+            let points = decode_layoutpacket(&packet, &mut Cursor::new(layout_bytes));
+            #[cfg(feature = "profile")] flame::end("decode packet");
 
-        Err(e) => {
-            println!("Failed to load cofig: {}", e);
+            #[cfg(feature = "profile")] flame::start("create line");
+            points.values()
+                  .iter()
+                  .zip(record.iter_mut())
+                  .map(|(value, csv_line)| { 
+                      csv_line.clear();
+                      csv_line.push_str(&format!("{}", value))
+                  });
+            #[cfg(feature = "profile")] flame::end("create line");
+
+            #[cfg(feature = "profile")] flame::start("write line");
+            writer.write_record(&record).unwrap();
+            #[cfg(feature = "profile")] flame::end("write line");
         }
-    };
+
+        // advance cursor to next structure
+        bytes.set_position((position + num_bytes as usize) as u64);
+    }
+    #[cfg(feature = "profile")] flame::end("main loop");
+
+    // println!("{}", to_string_pretty(&layout, Default::default()).expect("couldn't serialize layout!"));
+
+    #[cfg(feature = "profile")]
+    flame::dump_html(&mut File::create("flame-gasworks.html").unwrap()).unwrap();
+
+    Ok(())
+}
+
+main!(|args: Cli, log_level : verbosity| {
+    main_fn(args).unwrap();
 });
 

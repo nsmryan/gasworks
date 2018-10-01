@@ -1,4 +1,10 @@
-#[allow(unused_imports)]
+#[cfg(feature = "profile")]extern crate flame;
+extern crate bitreader;
+extern crate bytes;
+#[macro_use] extern crate serde;
+extern crate byteorder;
+extern crate ron;
+
 use std::collections::HashSet;
 #[allow(unused_imports)]
 use std::collections::HashMap;
@@ -7,21 +13,15 @@ use std::collections::BTreeMap;
 #[allow(unused_imports)]
 use std::iter::Iterator;
 
-extern crate bitreader;
 use bitreader::BitReader;
 
-extern crate bytes;
 #[allow(unused_imports)]
 use bytes::{Bytes, Buf};
 
-extern crate byteorder;
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, BigEndian, ByteOrder};
 
-extern crate ron;
 
-#[macro_use]
-extern crate serde;
 
 #[allow(unused_imports)]
 use std::io::{Cursor, Read};
@@ -45,13 +45,19 @@ pub fn decode_to_map(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
 }
 
 pub fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
+    let value : Value;
+
+    #[cfg(feature = "profile")] flame::start("decode prim");
     match prim {
         Prim::Int(int_prim) => {
-            decode_int(int_prim, bytes)
+            #[cfg(feature = "profile")] flame::start("decode int");
+            value = decode_int(int_prim, bytes);
+            #[cfg(feature = "profile")] flame::end("decode int");
         },
 
         Prim::Float(float_type) => {
-            match float_type {
+            #[cfg(feature = "profile")] flame::start("decode float");
+            value = match float_type {
                 FloatPrim::F32(endianness) => {
                     match endianness {
                         Endianness::BigEndian    => Value::F32(bytes.get_f32_be()),
@@ -65,7 +71,8 @@ pub fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
                         Endianness::LittleEndian => Value::F64(bytes.get_f64_le()),
                     }
                 },
-            }
+            };
+            #[cfg(feature = "profile")] flame::end("decode float");
         },
 
         // NOTE add bytes back in when you understand how to avoid copying
@@ -78,15 +85,20 @@ pub fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
         //},
 
         Prim::Enum(Enum{map, int_prim}) => {
+            #[cfg(feature = "profile")] flame::start("decode enum");
             // NOTE this doesn't ensure that the int_prim
             // decodes to a value in the map, and doesn't
             // enforce that the int_value.value doesn't loose precision
             let int_value = decode_int(int_prim, bytes);
             let int = int_value.value();
             // NOTE the use of to_string here may be wrong?
-            Value::Enum(map.get(&int).unwrap().to_string(), int)
+            value = Value::Enum(map.get(&int).unwrap().to_string(), int);
+            #[cfg(feature = "profile")] flame::end("decode enum");
         },
     }
+    #[cfg(feature = "profile")] flame::end("decode prim");
+
+    value
 }
 
 pub fn decode_int(int_prim : &IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
@@ -328,8 +340,11 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacketDef,
         }
 
         PacketDef::Leaf(item) => {
+            let prim = decode_prim(&item.typ, bytes);
+            #[cfg(feature = "profile")] flame::start("insert prim");
             map.value_map.insert(item.name.clone(),
-                                 ValueEntry::Leaf(decode_prim(&item.typ, bytes)));
+                                 ValueEntry::Leaf(prim));
+            #[cfg(feature = "profile")] flame::end("insert prim");
         },
     }
 }

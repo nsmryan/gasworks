@@ -21,10 +21,16 @@ pub fn valuemap_csv(map : &ValueMap,
     writer.write_record(map.values().iter().map(|value| {value.to_string()})).unwrap();
 }
 
-pub fn valuemap_csvheader(layout : &Layout,
+pub fn layout_csvheader(layout : &Layout,
                          writer : &mut csv::Writer<File>)
 {
     writer.write_record(layout.names().iter()).unwrap();
     //writer.write_record(map.keys().map(|value| {value.to_string()}));
+}
+
+pub fn layoutpacket_csvheader(packet : &LayoutPacketDef,
+                              writer : &mut csv::Writer<File>)
+{
+    writer.write_record(packet.names().iter()).unwrap();
 }
 

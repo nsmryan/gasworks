@@ -9,6 +9,7 @@ use std::option;
 
 use std::fmt;
 use std::cmp;
+use std::panic;
 
 extern crate bytes;
 #[allow(unused_imports)]
@@ -470,7 +471,74 @@ pub type LocPacketDef = PacketDef<LocItem>;
 
 pub type LayoutPacketDef = PacketDef<Item>;
 
+impl NumBytes for LayoutPacketDef {
+    fn num_bytes(&self) -> u64 {
+        let mut num_bytes : u64 = 0;
+
+        match self {
+            PacketDef::Seq(packets) => {
+                for packet in packets {
+                    num_bytes += packet.num_bytes();
+                }
+            },
+
+            PacketDef::Subcom(item, pairs) => {
+                let mut subcom_bytes :u64 = 0;
+                for (_, packet) in pairs {
+                    cmp::max(subcom_bytes, packet.num_bytes());
+                }
+                num_bytes += subcom_bytes;
+            },
+
+            PacketDef::Array(size, packet) => {
+                match size {
+                    ArrSize::Var(name) => {
+                        panic!("can't statically determine num_bytes for variable size array!");
+                    },
+
+                    ArrSize::Fixed(num_elements) => {
+                        num_bytes += packet.num_bytes() * (*num_elements as u64);
+                    }
+                }
+            },
+
+            PacketDef::Leaf(item) => {
+               num_bytes += item.num_bytes();
+            },
+        }
+
+        num_bytes
+    }
+}
+
 impl LayoutPacketDef {
+    pub fn names(&self) -> HashSet<&Name> {
+        let mut names : HashSet<&Name> = HashSet::new();
+        match self {
+            PacketDef::Seq(packets) => {
+                for packet in packets {
+                    names.extend(packet.names());
+                }
+            },
+
+            PacketDef::Subcom(item, pairs) => {
+                for (_, packet) in pairs {
+                   names.extend(packet.names());
+                }
+            },
+
+            PacketDef::Array(size, packet) => {
+               names.extend(packet.names());
+            },
+
+            PacketDef::Leaf(item) => {
+               names.insert(&item.name);
+            },
+        }
+
+        names
+    }
+
     // NOTE this function does not work! it does not create the 
     // correct locations for LocItems!
     /*
@@ -563,8 +631,8 @@ impl fmt::Display for Value {
       Value::I16(value)        => write!(f, "{}", value),
       Value::I32(value)        => write!(f, "{}", value),
       Value::I64(value)        => write!(f, "{}", value),
-      Value::F32(value)        => write!(f, "{}", value),
-      Value::F64(value)        => write!(f, "{}", value),
+      Value::F32(value)        => write!(f, "{:.3}", value),
+      Value::F64(value)        => write!(f, "{:.3}", value),
       Value::Enum(_, value) => write!(f, "{}", value),
     }
   }

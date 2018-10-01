@@ -1,3 +1,6 @@
+extern crate bytes;
+extern crate fnv;
+
 #[allow(unused_imports)]
 use std::collections::HashSet;
 #[allow(unused_imports)]
@@ -11,9 +14,11 @@ use std::fmt;
 use std::cmp;
 use std::panic;
 
-extern crate bytes;
+use self::fnv::FnvHashMap;
+
 #[allow(unused_imports)]
 use self::bytes::{Bytes, Buf};
+
 
 pub trait NumBytes {
   fn num_bytes(&self) -> u64;
@@ -584,7 +589,7 @@ pub enum Protocol<T> {
     Leaf(T),
 }
 
-pub type LayoutMap = BTreeMap<Name, (Loc, Prim)>;
+pub type LayoutMap = FnvHashMap<Name, (Loc, Prim)>;
 
 #[derive(PartialEq, PartialOrd, Debug, Deserialize, Serialize)]
 pub enum Value {
@@ -673,11 +678,11 @@ impl Point {
 
 #[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
 pub struct ValueMap {
-    pub value_map : BTreeMap<Name, ValueEntry>,
+    pub value_map : FnvHashMap<Name, ValueEntry>,
 }
 
 impl ValueMap {
-    pub fn new(value_map : BTreeMap<Name, ValueEntry>) -> ValueMap {
+    pub fn new(value_map : FnvHashMap<Name, ValueEntry>) -> ValueMap {
         ValueMap { value_map : value_map }
     }
 

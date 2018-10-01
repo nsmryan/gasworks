@@ -3,11 +3,10 @@ use std::collections::HashSet;
 #[allow(unused_imports)]
 use std::collections::HashMap;
 #[allow(unused_imports)]
-use std::collections::BTreeMap;
-#[allow(unused_imports)]
 use std::iter::Iterator;
 #[allow(unused_imports)]
 use std::io::{Cursor, Read};
+use fnv::FnvHashMap;
 
 extern crate byteorder;
 #[allow(unused_imports)]
@@ -24,7 +23,7 @@ use types::*;
 
 
 pub fn decode_to_map(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
-    let mut map = ValueMap::new(BTreeMap::new());
+    let mut map = ValueMap::new(FnvHashMap::default());
 
     let _ = decode_layout(layout, bytes, &mut map);
 
@@ -32,13 +31,19 @@ pub fn decode_to_map(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {
 }
 
 pub fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
+    let value : Value;
+
+    #[cfg(feature = "profile")] flame::start("decode prim");
     match prim {
         Prim::Int(int_prim) => {
-            decode_int(int_prim, bytes)
+            #[cfg(feature = "profile")] flame::start("decode int");
+            value = decode_int(int_prim, bytes);
+            #[cfg(feature = "profile")] flame::end("decode int");
         },
 
         Prim::Float(float_type) => {
-            match float_type {
+            #[cfg(feature = "profile")] flame::start("decode float");
+            value = match float_type {
                 FloatPrim::F32(endianness) => {
                     match endianness {
                         Endianness::BigEndian    => Value::F32(bytes.get_f32_be()),
@@ -52,7 +57,8 @@ pub fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
                         Endianness::LittleEndian => Value::F64(bytes.get_f64_le()),
                     }
                 },
-            }
+            };
+            #[cfg(feature = "profile")] flame::end("decode float");
         },
 
         // NOTE add bytes back in when you understand how to avoid copying
@@ -65,15 +71,20 @@ pub fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
         //},
 
         Prim::Enum(Enum{map, int_prim}) => {
+            #[cfg(feature = "profile")] flame::start("decode enum");
             // NOTE this doesn't ensure that the int_prim
             // decodes to a value in the map, and doesn't
             // enforce that the int_value.value doesn't loose precision
             let int_value = decode_int(int_prim, bytes);
             let int = int_value.value();
             // NOTE the use of to_string here may be wrong?
-            Value::Enum(map.get(&int).unwrap().to_string(), int)
+            value = Value::Enum(map.get(&int).unwrap().to_string(), int);
+            #[cfg(feature = "profile")] flame::end("decode enum");
         },
     }
+    #[cfg(feature = "profile")] flame::end("decode prim");
+
+    value
 }
 
 pub fn decode_int(int_prim : &IntPrim, bytes : &mut Cursor<&[u8]>) -> Value {
@@ -192,7 +203,7 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
         },
 
         Layout::Seq(name, layouts) => {
-            let mut section = ValueMap::new(BTreeMap::new());
+            let mut section = ValueMap::new(FnvHashMap::default());
             for layout in layouts.iter() {
                 decode_layout(layout, bytes, &mut section);
             }
@@ -200,7 +211,7 @@ fn decode_layout(layout : &Layout, bytes : &mut Cursor<&[u8]>, map : &mut ValueM
         },
 
         Layout::All(name, layouts) => {
-            let mut all = ValueMap::new(BTreeMap::new());
+            let mut all = ValueMap::new(FnvHashMap::default());
 
             let mut max_loc = bytes.position();
             let starting_loc = bytes.position();
@@ -250,16 +261,17 @@ pub fn decode_loc_item(loc_item : &LocItem, bytes : &mut Cursor<&[u8]>) -> Point
 }
 
 pub fn decode_layoutpacket(layout_packet : &LayoutPacketDef,
-                           bytes         : &mut Cursor<&[u8]>) -> HashMap<Name, Value> {
-    let mut map = HashMap::new();
+                           bytes         : &mut Cursor<&[u8]>) -> ValueMap {
+    let mut map = ValueMap::new(FnvHashMap::default());
 
     decode_layoutpacket_helper(layout_packet, bytes, &mut map);
 
     map
 }
+
 pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacketDef,
                                   bytes         : &mut Cursor<&[u8]>,
-                                  map           : &mut HashMap<Name, Value>) {
+                                  map           : &mut ValueMap) {
     match layout_packet {
         PacketDef::Seq(packets) => {
             for packet in packets {
@@ -268,38 +280,60 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacketDef,
         },
 
         PacketDef::Subcom(item, subcom) => {
-            let value : Value = map[&item.name].clone();
+            let entry = map.value_map[&item.name].clone();
 
-            for (item_key, packet) in subcom {
-                let subcom_value = &map[&item_key.name].clone();
+            match entry {
+               ValueEntry::Leaf(value) => {
+                  for (item_key, packet) in subcom {
+                      let subcom_entry = map.value_map[&item_key.name].clone();
+                      match subcom_entry {
+                         ValueEntry::Leaf(subcom_value) => {
+                             if value == subcom_value {
+                                 decode_layoutpacket_helper(packet, bytes, map);
+                                 break;
+                             }
 
-                if value == *subcom_value {
-                    decode_layoutpacket_helper(packet, bytes, map);
-                    break;
-                }
+                         }
+
+                         _ => (),
+                      }
+                  }
+               },
+
+               // NOTE if the name refers to something else then a value, it is skipped
+               _ => ()
             }
         },
 
-        // NOTE Names are not unique if there are arrays
-        // may need to switch to ValueEntry map and preserve
-        // structure instead
         PacketDef::Array(size, packet) => {
+            let num_elements : usize;
             match size {
-                ArrSize::Fixed(n) => {
-                    unimplemented!();
+                ArrSize::Fixed(num) => {
+                    num_elements = *num;
                 }
 
                 ArrSize::Var(name) => {
-                    unimplemented!();
+                    // TODO this should search the full map recursively.
+                    // an optimization would be to preprocess the packet and keep track of
+                    // a map of names that need to be used like this.
+                    num_elements = map.lookup(&name.to_string()).unwrap().value() as usize;
                 }
+            }
+            for _ in 0..num_elements {
+              decode_layoutpacket_helper(packet, bytes, map);
             }
         }
 
         PacketDef::Leaf(item) => {
-            map.insert(item.name.clone(), decode_prim(&item.typ, bytes));
+            let prim = decode_prim(&item.typ, bytes);
+            #[cfg(feature = "profile")] flame::start("insert prim");
+            map.value_map.insert(item.name.clone(),
+                                 ValueEntry::Leaf(prim));
+            #[cfg(feature = "profile")] flame::end("insert prim");
         },
     }
 }
+
 
 #[cfg(test)]
 mod test {
@@ -355,6 +389,162 @@ mod test {
 
       let value_prim0 = value_map.lookup(&"prim0".to_string()).unwrap();
       assert!(value_prim0 == Value::U8(0xAA));
+    }
+
+    #[test]
+    fn test_decode_prim() {
+      let byte_prim = Prim::Int(IntPrim::new(IntSize::Bits8, Signedness::Unsigned, Endianness::BigEndian));
+
+      let float32_be = Prim::Float(FloatPrim::F32(Endianness::BigEndian));
+      let float64_be = Prim::Float(FloatPrim::F64(Endianness::BigEndian));
+
+      let float32_le = Prim::Float(FloatPrim::F32(Endianness::LittleEndian));
+      let float64_le = Prim::Float(FloatPrim::F64(Endianness::LittleEndian));
+
+      let mut enum_map = FnvHashMap::new();
+      enum_map.insert(0, "Zero".to_string());
+      enum_map.insert(1, "One".to_string());
+      enum_map.insert(2, "Two".to_string());
+      enum_map.insert(5, "Five".to_string());
+      let enum_prim = IntPrim::new(IntSize::Bits32, Signedness::Unsigned, Endianness::BigEndian);
+      let enum_prim = Prim::Enum(Enum{map : enum_map, int_prim : enum_prim});
+
+      let v = vec![0xAA,
+                  0x3D, 0xCC, 0xCC, 0xCD,
+                  0x3F, 0xC9, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9A,
+                  0xCD, 0xCC, 0xCC, 0x3D,
+                  0x9A, 0x99, 0x99, 0x99, 0x99, 0x99, 0xC9, 0x3F,
+                  0x00, 0x00, 0x00, 0x00,
+                  0x00, 0x00, 0x00, 0x01,
+                  0x00, 0x00, 0x00, 0x02,
+                  0x00, 0x00, 0x00, 0x05
+                  ];
+      let mut bytes = Cursor::new(v.as_slice());
+      let byte_value = decode_prim(&byte_prim, &mut bytes);
+
+      let float32_value_be = decode_prim(&float32_be, &mut bytes);
+      let float64_value_be = decode_prim(&float64_be, &mut bytes);
+
+      let float32_value_le = decode_prim(&float32_le, &mut bytes);
+      let float64_value_le = decode_prim(&float64_le, &mut bytes);
+
+      let enum_value_zero = decode_prim(&enum_prim, &mut bytes);
+      let enum_value_one  = decode_prim(&enum_prim, &mut bytes);
+      let enum_value_two  = decode_prim(&enum_prim, &mut bytes);
+      let enum_value_five = decode_prim(&enum_prim, &mut bytes);
+
+      assert!(byte_value == Value::U8(0xAA));
+
+      assert!(float32_value_be == Value::F32(0.1));
+      assert!(float64_value_be == Value::F64(0.2));
+
+      assert!(float32_value_le == Value::F32(0.1));
+      assert!(float64_value_le == Value::F64(0.2));
+
+      assert!(enum_value_zero == Value::Enum("Zero".to_string(), 0));
+      assert!(enum_value_one  == Value::Enum("One".to_string(),  1));
+      assert!(enum_value_two  == Value::Enum("Two".to_string(),  2));
+      assert!(enum_value_five == Value::Enum("Five".to_string(), 5));
+    }
+
+    #[test]
+    fn test_decode_int() {
+      let byte_prim = IntPrim::new(IntSize::Bits8, Signedness::Unsigned, Endianness::BigEndian);
+
+      let short_prim_be = IntPrim::new(IntSize::Bits16, Signedness::Unsigned, Endianness::BigEndian);
+      let short_prim_le = IntPrim::new(IntSize::Bits16, Signedness::Unsigned, Endianness::LittleEndian);
+
+      let int_prim_be = IntPrim::new(IntSize::Bits32, Signedness::Unsigned, Endianness::BigEndian);
+      let int_prim_le = IntPrim::new(IntSize::Bits32, Signedness::Unsigned, Endianness::LittleEndian);
+
+      let long_prim_be = IntPrim::new(IntSize::Bits64, Signedness::Unsigned, Endianness::BigEndian);
+      let long_prim_le = IntPrim::new(IntSize::Bits64, Signedness::Unsigned, Endianness::LittleEndian);
+
+      let v = vec![0xAA,
+                   0x11, 0x22,
+                   0x33, 0x44,
+                   0x11, 0x22, 0x33, 0x44,
+                   0x44, 0x33, 0x22, 0x11,
+                   0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+                   0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11
+                  ];
+      let mut bytes = Cursor::new(v.as_slice());
+      let byte = decode_int(&byte_prim, &mut bytes);
+      let short_be = decode_int(&short_prim_be, &mut bytes);
+      let short_le = decode_int(&short_prim_le, &mut bytes);
+
+      let int_be = decode_int(&int_prim_be, &mut bytes);
+      let int_le = decode_int(&int_prim_le, &mut bytes);
+
+      let long_be = decode_int(&long_prim_be, &mut bytes);
+      let long_le = decode_int(&long_prim_le, &mut bytes);
+
+      assert!(byte == Value::U8(0xAA));
+
+      assert!(short_be == Value::U16(0x1122));
+      assert!(short_le == Value::U16(0x4433));
+
+      assert!(int_be == Value::U32(0x11223344));
+      assert!(int_le == Value::U32(0x11223344));
+
+      assert!(long_be == Value::U64(0x1122334455667788));
+      assert!(long_le == Value::U64(0x1122334455667788));
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_decode_layout() {
+      let bit_entries =
+          vec![("bits0".to_string(), 4,  IntPrim::u8_be()),
+               ("bits1".to_string(), 12, IntPrim::u16_be()),
+               ("bits2".to_string(), 2,  IntPrim::u8_be()),
+               ("bits3".to_string(), 14, IntPrim::u32_be())];
+      let bits_layout = Layout::Bits(BitPrim{entries : bit_entries, num_bytes : 4});
+
+      let all_vec = vec![Layout::Prim(Item::new("all0".to_string(), Prim::Int(IntPrim::u8_be()))),
+                         Layout::Prim(Item::new("all1".to_string(), Prim::Int(IntPrim::u32_be()))),
+                         Layout::Prim(Item::new("all2".to_string(), Prim::Int(IntPrim::u8_be())))];
+      let all_layout = Layout::All("all".to_string(), all_vec);
+
+      let prim_layout = Layout::Prim(Item::new("prim0".to_string(), Prim::Int(IntPrim::u8_be())));
+
+      let v = vec![0x12, 0x34, 0x56, 0x78,
+                   0x12, 0x34, 0x56, 0x78,
+                   0xAA
+                  ];
+      let mut bytes = Cursor::new(v.as_slice());
+
+      let layout = Layout::Seq("seq".to_string(), vec![bits_layout, all_layout , prim_layout]);
+
+      let value_map = decode_to_map(&layout, &mut bytes);
+
+      let value_bits0 = value_map.value_map.get(&"bits0".to_string()).unwrap();
+      assert!(*value_bits0 == ValueEntry::Leaf(Value::U8(0x01)));
+
+      let value_bits1 = value_map.value_map.get(&"bits1".to_string()).unwrap();
+      assert!(*value_bits1 == ValueEntry::Leaf(Value::U16(0x0234)));
+
+      let value_bits2 = value_map.value_map.get(&"bits2".to_string()).unwrap();
+      assert!(*value_bits2 == ValueEntry::Leaf(Value::U8(0x01)));
+
+      let value_bits3 = value_map.value_map.get(&"bits3".to_string()).unwrap();
+      assert!(*value_bits3 == ValueEntry::Leaf(Value::U32(0x00001678)));
+
+      let value_all0 = value_map.value_map.get(&"all0".to_string()).unwrap();
+      assert!(*value_all0 == ValueEntry::Leaf(Value::U8(0x12)));
+
+      let value_all1 = value_map.value_map.get(&"all1".to_string()).unwrap();
+      assert!(*value_all1 == ValueEntry::Leaf(Value::U32(0x12345678)));
+
+      let value_all2 = value_map.value_map.get(&"all2".to_string()).unwrap();
+      assert!(*value_all0 == ValueEntry::Leaf(Value::U8(0x12)));
+
+      let value_prim0 = value_map.value_map.get(&"prim0".to_string()).unwrap();
+      assert!(*value_prim0 == ValueEntry::Leaf(Value::U8(0xAA)));
     }
 
     #[test]

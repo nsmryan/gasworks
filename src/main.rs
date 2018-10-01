@@ -21,6 +21,7 @@ use memmap::{ MmapOptions };
 use gasworks::*;
 use gasworks::types::*;
 use gasworks::csv::*;
+use gasworks::decode::*;
 
 
 #[derive(Debug, StructOpt)]

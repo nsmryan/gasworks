@@ -172,6 +172,8 @@ fn main_fn(args : Cli) -> Result<()>
         record.push(String::with_capacity(64));
     }
 
+    let maybe_located = packet.locate();
+
     #[cfg(feature = "profile")] flame::start("main loop");
 
     // Decode file and write out CSV
@@ -183,19 +185,37 @@ fn main_fn(args : Cli) -> Result<()>
 
             let layout_bytes = &layout_bytes[position .. (position + num_bytes as usize)];
 
-            #[cfg(feature = "profile")] flame::start("decode packet");
-            let points = decode_layoutpacket(&packet, &mut Cursor::new(layout_bytes));
-            #[cfg(feature = "profile")] flame::end("decode packet");
+            match maybe_located {
+                Some(ref loc_layout) => {
+                    let points =
+                        decode_loc_layout(loc_layout, &mut Cursor::new(layout_bytes))
+                           .iter()
+                           .zip(record.iter_mut())
+                           .map(|(point, csv_line)|  {
+                                csv_line.clear();
+                                csv_line.push_str(&format!("{}", point.val));
+                              })
+                           .collect::<()>();
+                                                             
+                },
 
-            #[cfg(feature = "profile")] flame::start("create line");
-            points.values()
-                  .iter()
-                  .zip(record.iter_mut())
-                  .map(|(value, csv_line)| { 
-                      csv_line.clear();
-                      csv_line.push_str(&format!("{}", value))
-                  });
-            #[cfg(feature = "profile")] flame::end("create line");
+                None => {
+                    #[cfg(feature = "profile")] flame::start("decode packet");
+                    let points = decode_layoutpacket(&packet, &mut Cursor::new(layout_bytes));
+                    #[cfg(feature = "profile")] flame::end("decode packet");
+
+                    #[cfg(feature = "profile")] flame::start("create line");
+                    points.values()
+                          .iter()
+                          .zip(record.iter_mut())
+                          .map(|(value, csv_line)| { 
+                              csv_line.clear();
+                              csv_line.push_str(&format!("{}", value));
+                          })
+                          .collect::<()>();
+                    #[cfg(feature = "profile")] flame::end("create line");
+                },
+            }
 
             #[cfg(feature = "profile")] flame::start("write line");
             writer.write_record(&record).unwrap();
@@ -206,8 +226,6 @@ fn main_fn(args : Cli) -> Result<()>
         bytes.set_position((position + num_bytes as usize) as u64);
     }
     #[cfg(feature = "profile")] flame::end("main loop");
-
-    // println!("{}", to_string_pretty(&layout, Default::default()).expect("couldn't serialize layout!"));
 
     #[cfg(feature = "profile")]
     flame::dump_html(&mut File::create("flame-gasworks.html").unwrap()).unwrap();

@@ -531,13 +531,13 @@ impl LayoutPacketDef {
                 }
             },
 
-            PacketDef::Subcom(name, item, pairs) => {
+            PacketDef::Subcom(_, item, pairs) => {
                 for (_, packet) in pairs {
                    names.extend(packet.names());
                 }
             },
 
-            PacketDef::Array(name, size, packet) => {
+            PacketDef::Array(_, _, packet) => {
                names.extend(packet.names());
             },
 
@@ -551,7 +551,6 @@ impl LayoutPacketDef {
 
     // NOTE this function does not work! it does not create the 
     // correct locations for LocItems!
-    /*
     pub fn locate(&self) -> Option<LocLayout> {
         let mut offset = 0;
         let mut loc_layout : LocLayout = LocLayout::new();
@@ -562,42 +561,43 @@ impl LayoutPacketDef {
                                                     &mut loc_layout,
                                                     &mut loc_path); 
 
-        result
+        if result {
+            Some(loc_layout)
+        }
+        else {
+            None
+        }
     }
     
-    fn locate_helper(packet : &LayoutPacketDef, 
-                     offset : &mut u64, 
+    fn locate_helper(packet     : &LayoutPacketDef, 
+                     offset     : &mut u64, 
                      loc_layout : &mut LocLayout,
-                     loc_path : &mut LocPath) -> Option<LocLayout> {
-        let mut result : Option<LocLayout> = None;
+                     loc_path   : &mut LocPath) -> bool {
+        let mut result : bool;
 
         match packet {
             PacketDef::Seq(name, packets) => {
-                let mut locate_result = Some(loc_layout);
+                result = true;
+
                 for packet in packets {
                     loc_path.push(name.to_string());
-                    locate_result = LayoutPacketDef::locate_helper(packet,
-                                                                   offset,
-                                                                   loc_layout,
-                                                                   loc_path);
+                    result = LayoutPacketDef::locate_helper(packet,
+                                                            offset,
+                                                            loc_layout,
+                                                            loc_path);
                     loc_path.pop();
-
-                    match locate_result {
-                        Some(loc_layout) => result = Some(*loc_layout),
-                        None => {
-                            result = None;
-                            break;
-                        },
+                    if (!result) {
+                        break;
                     }
                 }
             },
 
-            PacketDef::Subcom(name, item, pairs) => {
-                result = None;
+            PacketDef::Subcom(_, _, _) => {
+                result = false;
             },
 
-            PacketDef::Array(name, size, packet) => {
-                result = None;
+            PacketDef::Array(_, _, _) => {
+                result = false;
             }
 
             PacketDef::Leaf(ref item) => {
@@ -608,13 +608,12 @@ impl LayoutPacketDef {
                 loc_path.pop();
                 *offset += item.num_bytes();
 
-                result = Some(*loc_layout);
+                result = true;
             },
         }
 
         result
     }
-    */
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -749,7 +748,6 @@ impl ValueMap {
         values
     }
 
-    // NOTE this returns the Value, not a reference. is this okay?
     pub fn lookup(&self, name : &Name) -> Option<Value> {
         match self.value_map.get(name) {
             Some(ValueEntry::Leaf(value)) =>

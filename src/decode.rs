@@ -2,6 +2,8 @@ extern crate byteorder;
 extern crate bitreader;
 extern crate bytes;
 
+#[cfg(feature = "profile")]extern crate flame;
+
 #[allow(unused_imports)]
 use std::collections::HashSet;
 #[allow(unused_imports)]
@@ -10,11 +12,13 @@ use std::collections::HashMap;
 use std::iter::Iterator;
 #[allow(unused_imports)]
 use std::io::{Cursor, Read};
+use std::mem;
 use fnv::FnvHashMap;
 #[cfg(test)]
 use std::collections::BTreeMap;
 
-#[cfg(feature = "profile")]extern crate flame;
+#[cfg(profile)]
+use flame;
 
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, BigEndian, ByteOrder};
@@ -347,7 +351,7 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacketDef,
 
 
 #[cfg(test)]
-mod test {
+mod test_decode {
     use super::*;
 
     #[test]

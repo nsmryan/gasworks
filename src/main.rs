@@ -74,20 +74,20 @@ pub fn val_f32 (value : f32) -> Value { Value::F32(value) }
 pub fn val_f64 (value : f64) -> Value { Value::F64(value) }
 pub fn val_enum(name : Name, value : i64) -> Value { Value::Enum(name, value) }
 
-pub fn seq<T>(packets : Vec<PacketDef<T>>) -> PacketDef<T> {
-    PacketDef::Seq(packets)
+pub fn seq<T>(name : Name, packets : Vec<PacketDef<T>>) -> PacketDef<T> {
+    PacketDef::Seq(name, packets)
 }
 
 pub fn leaf<T>(item : T) -> PacketDef<T> {
     PacketDef::Leaf(item)
 }
 
-pub fn array_fixed<T>(size : usize, packet : PacketDef<T>) -> PacketDef<T> {
-    PacketDef::Array(ArrSize::Fixed(size), Box::new(packet))
+pub fn array_fixed<T>(name : Name, size : usize, packet : PacketDef<T>) -> PacketDef<T> {
+    PacketDef::Array(name, ArrSize::Fixed(size), Box::new(packet))
 }
 
-pub fn array_var<T>(name : Name, packet : PacketDef<T>) -> PacketDef<T> {
-    PacketDef::Array(ArrSize::Var(name), Box::new(packet))
+pub fn array_var<T>(name : Name, var_name : Name, packet : PacketDef<T>) -> PacketDef<T> {
+    PacketDef::Array(name, ArrSize::Var(var_name), Box::new(packet))
 }
 
 
@@ -97,7 +97,9 @@ fn main_fn(args : Cli) -> Result<()>
     let mut writer = csv::Writer::from_path(args.outfile).unwrap(); 
 
     let vn200_tlm : LayoutPacketDef = 
-      seq(vec!(seq(vec!(u8_be("sync"),
+      seq("vn200".to_string(),
+          vec!(seq("group1".to_string(),
+                   vec!(u8_be("sync"),
                         u8_le("groups"),
                         u16_le("group1Flags"),
                         u16_le("group3Flags"),
@@ -105,9 +107,9 @@ fn main_fn(args : Cli) -> Result<()>
                         u16_le("group5Flags"),
                         u16_le("group6Flags")
                         )
-                   ),
+               ),
 
-               seq(vec!(u64_le("timeSinceStartup"),
+               seq("group2".to_string(), vec!(u64_le("timeSinceStartup"),
                         u64_le("timeGPS"),
                         f32_le("yawPitchRoll[0]"),
                         f32_le("yawPitchRoll[1]"),
@@ -123,9 +125,9 @@ fn main_fn(args : Cli) -> Result<()>
                         f32_le("velocity[2]"),
                         u16_le("insStatus")
                         )
-                   ),
+               ),
 
-               seq(vec!(f32_le("temperature"),
+               seq("group3".to_string(), vec!(f32_le("temperature"),
                         f32_le("pressure"),
                         u16_le("sensor_status"),
                         u8_le("nGpsSats"),
@@ -141,7 +143,7 @@ fn main_fn(args : Cli) -> Result<()>
                         f32_le("insVelUncertainty"),
                         u16_le("crc16")
                         )
-                   ),
+               ),
 
                u16_le("ccsds_crc16")
               )

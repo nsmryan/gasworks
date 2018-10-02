@@ -12,7 +12,6 @@ use std::option;
 
 use std::fmt;
 use std::cmp;
-use std::panic;
 
 use self::fnv::FnvHashMap;
 
@@ -277,6 +276,12 @@ pub struct LocLayout {
     pub loc_items : Vec<LocItem>,
 }
 
+impl LocLayout {
+    pub fn new() -> LocLayout {
+        LocLayout { loc_items : Vec::new() }
+    }
+}
+
 impl NumBytes for LocLayout {
     fn num_bytes(&self) -> u64 {
         let mut num_bytes = 0;
@@ -455,11 +460,11 @@ pub enum ArrSize {
 
 #[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub enum PacketDef<T> {
-    Seq(Vec<PacketDef<T>>),
+    Seq(Name, Vec<PacketDef<T>>),
     // NOTE add back in multiple items here when needed. removed for simplicity.
     // Subcom(HashMap<Vec<Item>, PacketDef>),
-    Subcom(T, Vec<(T, PacketDef<T>)>),
-    Array(ArrSize, Box<PacketDef<T>>),
+    Subcom(Name, T, Vec<(T, PacketDef<T>)>),
+    Array(Name, ArrSize, Box<PacketDef<T>>),
     Leaf(T),
 }
 
@@ -481,13 +486,13 @@ impl NumBytes for LayoutPacketDef {
         let mut num_bytes : u64 = 0;
 
         match self {
-            PacketDef::Seq(packets) => {
+            PacketDef::Seq(name, packets) => {
                 for packet in packets {
                     num_bytes += packet.num_bytes();
                 }
             },
 
-            PacketDef::Subcom(item, pairs) => {
+            PacketDef::Subcom(name, item, pairs) => {
                 let mut subcom_bytes :u64 = 0;
                 for (_, packet) in pairs {
                     cmp::max(subcom_bytes, packet.num_bytes());
@@ -495,7 +500,7 @@ impl NumBytes for LayoutPacketDef {
                 num_bytes += subcom_bytes;
             },
 
-            PacketDef::Array(size, packet) => {
+            PacketDef::Array(name, size, packet) => {
                 match size {
                     ArrSize::Var(name) => {
                         panic!("can't statically determine num_bytes for variable size array!");
@@ -520,19 +525,19 @@ impl LayoutPacketDef {
     pub fn names(&self) -> HashSet<&Name> {
         let mut names : HashSet<&Name> = HashSet::new();
         match self {
-            PacketDef::Seq(packets) => {
+            PacketDef::Seq(name, packets) => {
                 for packet in packets {
                     names.extend(packet.names());
                 }
             },
 
-            PacketDef::Subcom(item, pairs) => {
+            PacketDef::Subcom(name, item, pairs) => {
                 for (_, packet) in pairs {
                    names.extend(packet.names());
                 }
             },
 
-            PacketDef::Array(size, packet) => {
+            PacketDef::Array(name, size, packet) => {
                names.extend(packet.names());
             },
 
@@ -547,33 +552,67 @@ impl LayoutPacketDef {
     // NOTE this function does not work! it does not create the 
     // correct locations for LocItems!
     /*
-    pub fn locate(&self) -> LocPacketDef {
-        match self {
-            PacketDef::Seq(packets) => {
-                PacketDef::Seq(packets.iter().map(|packet| {packet.locate()}).collect())
+    pub fn locate(&self) -> Option<LocLayout> {
+        let mut offset = 0;
+        let mut loc_layout : LocLayout = LocLayout::new();
+        let mut loc_path = LocPath::new();
+
+        let result = LayoutPacketDef::locate_helper(self,
+                                                    &mut offset,
+                                                    &mut loc_layout,
+                                                    &mut loc_path); 
+
+        result
+    }
+    
+    fn locate_helper(packet : &LayoutPacketDef, 
+                     offset : &mut u64, 
+                     loc_layout : &mut LocLayout,
+                     loc_path : &mut LocPath) -> Option<LocLayout> {
+        let mut result : Option<LocLayout> = None;
+
+        match packet {
+            PacketDef::Seq(name, packets) => {
+                let mut locate_result = Some(loc_layout);
+                for packet in packets {
+                    loc_path.push(name.to_string());
+                    locate_result = LayoutPacketDef::locate_helper(packet,
+                                                                   offset,
+                                                                   loc_layout,
+                                                                   loc_path);
+                    loc_path.pop();
+
+                    match locate_result {
+                        Some(loc_layout) => result = Some(*loc_layout),
+                        None => {
+                            result = None;
+                            break;
+                        },
+                    }
+                }
             },
 
-            PacketDef::Subcom(item, pairs) => {
-                // NOTE use of clone
-                PacketDef::Subcom(LocItem::new(vec!(item.name.clone()), item.typ.clone(), 0),
-                               pairs.iter().map(|(item, packet)| {
-                                   (LocItem::new(vec!(item.name.clone()), item.typ.clone(), 0),
-                                    packet.locate())
-                               }).collect()
-                )
+            PacketDef::Subcom(name, item, pairs) => {
+                result = None;
             },
 
-            PacketDef::Array(size, packet) => {
+            PacketDef::Array(name, size, packet) => {
+                result = None;
             }
 
             PacketDef::Leaf(ref item) => {
-                // NOTE use of clone
-                let prim = Layout::Prim(item.clone());
-                let seq = Layout::Seq("".to_string(), vec!(prim));
-                // NOTE use of clone
-                PacketDef::Leaf(seq.locate().loc_items[0].clone())
+                loc_path.push(item.name.clone());
+                loc_layout.loc_items.push(LocItem::new(loc_path.clone(),
+                                                       item.typ.clone(),
+                                                       *offset));
+                loc_path.pop();
+                *offset += item.num_bytes();
+
+                result = Some(*loc_layout);
             },
         }
+
+        result
     }
     */
 }

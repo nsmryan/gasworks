@@ -273,13 +273,13 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacketDef,
                                   bytes         : &mut Cursor<&[u8]>,
                                   map           : &mut ValueMap) {
     match layout_packet {
-        PacketDef::Seq(packets) => {
+        PacketDef::Seq(name, packets) => {
             for packet in packets {
                 decode_layoutpacket_helper(packet, bytes, map);
             }
         },
 
-        PacketDef::Subcom(item, subcom) => {
+        PacketDef::Subcom(name, item, subcom) => {
             let entry = map.value_map[&item.name].clone();
 
             match entry {
@@ -305,7 +305,7 @@ pub fn decode_layoutpacket_helper(layout_packet : &LayoutPacketDef,
             }
         },
 
-        PacketDef::Array(size, packet) => {
+        PacketDef::Array(name, size, packet) => {
             let num_elements : usize;
             match size {
                 ArrSize::Fixed(num) => {

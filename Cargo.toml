@@ -23,9 +23,7 @@ memmap = "0.7"
 string-interner = "0.7"
 flame = { version = "0.2", optional = true }
 fnv = "1.0"
-
-[[bin]]
-name="gasworks"
+heapsize = "0.4.2"
 
 [features]
 profile = ["flame"]

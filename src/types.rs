@@ -250,7 +250,7 @@ impl Item {
   }
 }
 
-type LocPath = Vec<Name>;
+pub type LocPath = Vec<Name>;
 
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub struct LocItem {

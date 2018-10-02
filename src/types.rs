@@ -486,13 +486,13 @@ impl NumBytes for LayoutPacketDef {
         let mut num_bytes : u64 = 0;
 
         match self {
-            PacketDef::Seq(name, packets) => {
+            PacketDef::Seq(_, packets) => {
                 for packet in packets {
                     num_bytes += packet.num_bytes();
                 }
             },
 
-            PacketDef::Subcom(name, item, pairs) => {
+            PacketDef::Subcom(_, _, pairs) => {
                 let mut subcom_bytes :u64 = 0;
                 for (_, packet) in pairs {
                     cmp::max(subcom_bytes, packet.num_bytes());
@@ -500,9 +500,9 @@ impl NumBytes for LayoutPacketDef {
                 num_bytes += subcom_bytes;
             },
 
-            PacketDef::Array(name, size, packet) => {
+            PacketDef::Array(_, size, packet) => {
                 match size {
-                    ArrSize::Var(name) => {
+                    ArrSize::Var(_) => {
                         panic!("can't statically determine num_bytes for variable size array!");
                     },
 
@@ -525,19 +525,19 @@ impl LayoutPacketDef {
     pub fn names(&self) -> HashSet<&Name> {
         let mut names : HashSet<&Name> = HashSet::new();
         match self {
-            PacketDef::Seq(name, packets) => {
+            PacketDef::Seq(_, packets) => {
                 for packet in packets {
                     names.extend(packet.names());
                 }
             },
 
-            PacketDef::Subcom(name, item, pairs) => {
+            PacketDef::Subcom(_, _, pairs) => {
                 for (_, packet) in pairs {
                    names.extend(packet.names());
                 }
             },
 
-            PacketDef::Array(name, size, packet) => {
+            PacketDef::Array(_, _, packet) => {
                names.extend(packet.names());
             },
 
@@ -561,18 +561,21 @@ impl LayoutPacketDef {
                                                     &mut loc_layout,
                                                     &mut loc_path); 
 
-        result
+        match result {
+            Some(loc_layout) => Some(*loc_layout),
+            None => None,
+        }
     }
     
-    fn locate_helper(packet : &LayoutPacketDef, 
+    fn locate_helper<'a>(packet : &LayoutPacketDef, 
                      offset : &mut u64, 
-                     loc_layout : &mut LocLayout,
-                     loc_path : &mut LocPath) -> Option<LocLayout> {
-        let mut result : Option<LocLayout> = None;
+                     loc_layout : &'a mut LocLayout,
+                     loc_path : &mut LocPath) -> Option<&'a mut LocLayout> {
+        let mut result : Option<&'a mut LocLayout> = None;
 
         match packet {
             PacketDef::Seq(name, packets) => {
-                let mut locate_result = Some(loc_layout);
+                let mut locate_result;
                 for packet in packets {
                     loc_path.push(name.to_string());
                     locate_result = LayoutPacketDef::locate_helper(packet,
@@ -582,7 +585,7 @@ impl LayoutPacketDef {
                     loc_path.pop();
 
                     match locate_result {
-                        Some(loc_layout) => result = Some(*loc_layout),
+                        Some(loc_layout) => result = Some(loc_layout),
                         None => {
                             result = None;
                             break;
@@ -591,11 +594,11 @@ impl LayoutPacketDef {
                 }
             },
 
-            PacketDef::Subcom(name, item, pairs) => {
+            PacketDef::Subcom(_, _, _) => {
                 result = None;
             },
 
-            PacketDef::Array(name, size, packet) => {
+            PacketDef::Array(_, _, _) => {
                 result = None;
             }
 
@@ -607,7 +610,7 @@ impl LayoutPacketDef {
                 loc_path.pop();
                 *offset += item.num_bytes();
 
-                result = Some(*loc_layout);
+                result = Some(loc_layout);
             },
         }
 

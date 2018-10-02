@@ -6,7 +6,6 @@ extern crate byteorder;
 extern crate ron;
 extern crate fnv;
 
-use std::collections::HashSet;
 #[allow(unused_imports)]
 use std::collections::HashMap;
 #[allow(unused_imports)]
@@ -50,13 +49,13 @@ fn identify_locpacket_helper(packet : &LocPacketDef,
                              loc_layout : &mut LocLayout) 
 {
     match packet {
-        PacketDef::Seq(name, packets) => {
+        PacketDef::Seq(_, packets) => {
             for packet in packets {
                 identify_locpacket_helper(packet, bytes, loc_layout);
             }
         },
 
-        PacketDef::Subcom(name, item, subcom) => {
+        PacketDef::Subcom(_, item, subcom) => {
             // NOTE we are decoding items here and throwing them away. the assumption is that
             // we don't decode many items, and don't need to keep our work.
             // we re-decode items even if they are used in other iterations of this loop!
@@ -74,7 +73,7 @@ fn identify_locpacket_helper(packet : &LocPacketDef,
 
         // NOTE an optimization here would be to use a hashmap, or
         // to keep only values used in decisions, determined beforehand.
-        PacketDef::Array(name, size, packet) => {
+        PacketDef::Array(_, size, packet) => {
             let mut num_elements : usize = 0;
             match size {
                 ArrSize::Fixed(num) =>
@@ -117,20 +116,20 @@ pub fn choice_points(packet : &LayoutPacketDef) -> ChoicePoints {
     let mut map = HashMap::new();
 
     match packet {
-        PacketDef::Seq(name, packets) => {
+        PacketDef::Seq(_, packets) => {
             for packet in packets {
                 map.extend(choice_points(packet))
             }
         },
 
-        PacketDef::Subcom(name, item, subcom) => {
+        PacketDef::Subcom(_, item, subcom) => {
             map.insert(item.name.clone(), None);
             for pair in subcom {
                 map.extend(choice_points(&pair.1))
             }
         },
 
-        PacketDef::Array(name, size, packet) => {
+        PacketDef::Array(_, size, packet) => {
             match size {
                 ArrSize::Var(name)  => {
                     map.insert(name.clone(), None);

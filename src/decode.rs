@@ -1,3 +1,5 @@
+#[cfg(feature = "profile")]extern crate flame;
+
 #[allow(unused_imports)]
 use std::collections::HashSet;
 #[allow(unused_imports)]
@@ -6,7 +8,11 @@ use std::collections::HashMap;
 use std::iter::Iterator;
 #[allow(unused_imports)]
 use std::io::{Cursor, Read};
+use std::mem;
 use fnv::FnvHashMap;
+
+#[cfg(profile)]
+use flame;
 
 extern crate byteorder;
 #[allow(unused_imports)]
@@ -47,14 +53,32 @@ pub fn decode_prim(prim : &Prim, bytes : &mut Cursor<&[u8]>) -> Value {
                 FloatPrim::F32(endianness) => {
                     match endianness {
                         Endianness::BigEndian    => Value::F32(bytes.get_f32_be()),
-                        Endianness::LittleEndian => Value::F32(bytes.get_f32_le()),
+                        Endianness::LittleEndian => {
+                           // Value::F32(bytes.get_f32_le()),
+                            let mut float_buffer : [u8; 4] = [0;  4];
+                            bytes.read(&mut float_buffer);
+                            let float : f32;
+                            unsafe {
+                              float = mem::transmute(float_buffer);
+                            }
+                            Value::F32(float)
+                        },
                     }
                 }
 
                 FloatPrim::F64(endianness) => {
                     match endianness {
                         Endianness::BigEndian    => Value::F64(bytes.get_f64_be()),
-                        Endianness::LittleEndian => Value::F64(bytes.get_f64_le()),
+                        Endianness::LittleEndian => {
+                            //Value::F64(bytes.get_f64_le()),
+                            let mut float_buffer : [u8; 8] = [0;  8];
+                            bytes.read(&mut float_buffer);
+                            let float : f64;
+                            unsafe {
+                              float = mem::transmute(float_buffer);
+                            }
+                            Value::F64(float)
+                        }
                     }
                 },
             };

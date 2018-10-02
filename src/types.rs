@@ -551,7 +551,6 @@ impl LayoutPacketDef {
 
     // NOTE this function does not work! it does not create the 
     // correct locations for LocItems!
-    /*
     pub fn locate(&self) -> Option<LocLayout> {
         let mut offset = 0;
         let mut loc_layout : LocLayout = LocLayout::new();
@@ -614,7 +613,6 @@ impl LayoutPacketDef {
 
         result
     }
-    */
 }
 
 #[derive(Eq, PartialEq, Debug)]

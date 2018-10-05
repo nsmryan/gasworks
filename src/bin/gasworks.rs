@@ -172,11 +172,14 @@ main!(|args: Cli, log_level : verbosity| {
 
     let num_threads = 10;
 
-    #[cfg(feature = "profile")] flame::start("main loop");
+    // read whole file
+    let mut byte_vec: Vec<u8> = Vec::new();
+    File::open(args.infile).unwrap().read_to_end(&mut byte_vec).unwrap();
+    let length = byte_vec.len() as usize;
 
     // set up thread system
     let mut threads = Vec::new();
-    let mut senders_locs: Vec<Sender<&[u8]>> = Vec::new();
+    let mut senders_locs: Vec<Sender<u64>> = Vec::new();
     let mut receivers_points: Vec<Receiver<Vec<Point>>>   = Vec::new();
 
     for _ in 0..num_threads {
@@ -188,7 +191,9 @@ main!(|args: Cli, log_level : verbosity| {
 
         let loc_layout = loc_layout.clone();
         threads.push(thread::spawn(move || {
-            while let Some(layout_bytes) = receive_loc.recv() {
+            while let Some(loc) = receive_loc.recv() {
+                let layout_bytes: &[u8] =
+                    &byte_vec[loc .. (loc + num_bytes as usize)];
                 let points = decode_loc_layout(&loc_layout, &mut Cursor::new(layout_bytes));
                 send_points.send(points);
             }
@@ -216,20 +221,14 @@ main!(|args: Cli, log_level : verbosity| {
         }
     }));
 
-    // read whole file
-    let mut byte_vec: Vec<u8> = Vec::new();
-    File::open(args.infile).unwrap().read_to_end(&mut byte_vec).unwrap();
-    let length = byte_vec.len() as usize;
 
     let mut index = 0;
     // Decode file and write out CSV
     let mut position : usize = 0;
+    #[cfg(feature = "profile")] flame::start("main loop");
     while (position + num_bytes) < length as usize {
         {
-            let layout_bytes: &[u8] =
-                &byte_vec[position .. (position + num_bytes as usize)];
-
-            senders_locs[index].send(layout_bytes);
+            senders_locs[index].send(position);
 
             index = (index + 1) % num_threads;
         }

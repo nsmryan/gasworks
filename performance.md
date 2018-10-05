@@ -29,5 +29,8 @@ release build, reused csv record strings, 7.178 seconds
 
 Seventh Attempt:
 release build, fnv hashmap, 5.436 seconds
-second run, 5.003 seconds
+second run, 5.003 seconds- invalid result- not actually decoding.
 16.74 MB/second
+
+Eighth Attempt:
+release build, writing in separate thread, 13.748 seconds.

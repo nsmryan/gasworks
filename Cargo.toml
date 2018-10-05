@@ -24,6 +24,7 @@ string-interner = "0.7"
 flame = { version = "0.2", optional = true }
 fnv = "1.0"
 heapsize = "0.4.2"
+crossbeam-channel = "0.2"
 
 [features]
 profile = ["flame"]

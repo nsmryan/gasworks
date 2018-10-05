@@ -271,7 +271,7 @@ impl LocItem {
   }
 }
 
-#[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]
+#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize)]
 pub struct LocLayout {
     pub loc_items : Vec<LocItem>,
 }

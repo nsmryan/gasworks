@@ -34,3 +34,12 @@ second run, 5.003 seconds- invalid result- not actually decoding.
 
 Eighth Attempt:
 release build, writing in separate thread, 13.748 seconds.
+
+Ninth Attempt:
+release build, rayon threading, 10 per channel, 24 seconds
+
+Tenth Attempt:
+release build, rayon threading, 1 per channel, 26 seconds
+
+Eleventh Attempt:
+release build, rayon threading, 1 per channel, 24 seconds

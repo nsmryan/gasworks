@@ -92,9 +92,9 @@ impl FloatPrim {
 
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub struct IntPrim {
-    pub size : IntSize,
-    pub signedness : Signedness,
-    pub endianness : Endianness,
+    pub size: IntSize,
+    pub signedness: Signedness,
+    pub endianness: Endianness,
 }
 
 impl NumBytes for IntPrim {
@@ -104,13 +104,13 @@ impl NumBytes for IntPrim {
 }
 
 impl IntPrim {
-  pub fn new(size : IntSize,
-             signedness : Signedness,
-             endianness : Endianness) -> Self {
+  pub fn new(size: IntSize,
+             signedness: Signedness,
+             endianness: Endianness) -> Self {
     
-    IntPrim{ size : size,
-             signedness : signedness,
-             endianness : endianness
+    IntPrim{ size: size,
+             signedness: signedness,
+             endianness: endianness
            }
   }
 
@@ -183,9 +183,9 @@ impl IntPrim {
 // currently limited to 8/16/32/64 fields
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub struct BitPrim {
-    pub entries : Vec<(Name, u32, IntPrim)>,
+    pub entries: Vec<(Name, u32, IntPrim)>,
     // NOTE rename to size or int_prim
-    pub num_bytes : u64,
+    pub num_bytes: u64,
 }
 
 impl NumBytes for BitPrim {
@@ -196,8 +196,8 @@ impl NumBytes for BitPrim {
 
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub struct Enum {
-    pub map : BTreeMap<i64, Name>,
-    pub int_prim : IntPrim,
+    pub map: BTreeMap<i64, Name>,
+    pub int_prim: IntPrim,
 }
 
 impl NumBytes for Enum {
@@ -226,14 +226,14 @@ impl NumBytes for Prim {
 
 #[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
 pub struct Item {
-    pub name : Name,
-    pub typ : Prim,
+    pub name: Name,
+    pub typ: Prim,
 }
 
 impl Clone for Item {
     fn clone(&self) -> Item {
-        Item {name : self.name.clone(),
-             typ  : self.typ.clone(),
+        Item {name: self.name.clone(),
+             typ: self.typ.clone(),
         }
     }
 }
@@ -245,8 +245,8 @@ impl NumBytes for Item {
 }
 
 impl Item {
-  pub fn new(name : Name, typ : Prim) -> Self {
-    Item{name : name, typ : typ}
+  pub fn new(name: Name, typ: Prim) -> Self {
+    Item{name: name, typ: typ}
   }
 }
 
@@ -254,9 +254,9 @@ pub type LocPath = Vec<Name>;
 
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub struct LocItem {
-  pub name : LocPath,
-  pub typ : Prim,
-  pub loc : Loc,
+  pub name: LocPath,
+  pub typ: Prim,
+  pub loc: Loc,
 }
 
 impl NumBytes for LocItem {
@@ -266,19 +266,19 @@ impl NumBytes for LocItem {
 }
 
 impl LocItem {
-  pub fn new(name : LocPath, typ : Prim, loc : Loc) -> LocItem {
-    LocItem{ name : name, typ : typ, loc : loc }
+  pub fn new(name: LocPath, typ: Prim, loc: Loc) -> LocItem {
+    LocItem{ name: name, typ: typ, loc: loc }
   }
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize)]
 pub struct LocLayout {
-    pub loc_items : Vec<LocItem>,
+    pub loc_items: Vec<LocItem>,
 }
 
 impl LocLayout {
     pub fn new() -> LocLayout {
-        LocLayout { loc_items : Vec::new() }
+        LocLayout { loc_items: Vec::new() }
     }
 }
 
@@ -345,10 +345,10 @@ impl Layout {
   // NOTE the section/all/array name is not inserted here, only
   // primitives get added.
   pub fn names(&self) -> HashSet<&Name> {
-    let mut names : HashSet<&Name> = HashSet::new();
+    let mut names: HashSet<&Name> = HashSet::new();
 
     match self {
-      Layout::Prim(Item{name, typ : _}) => {
+      Layout::Prim(Item{name, typ: _}) => {
         names.insert(name);
       }
 
@@ -384,13 +384,13 @@ impl Layout {
     let path = Vec::new();
     self.locate_loc(&mut loc_items, &path, &mut loc);
 
-    LocLayout { loc_items : loc_items }
+    LocLayout { loc_items: loc_items }
   }
 
   pub fn locate_loc(&self,
-                    loc_items : &mut Vec<LocItem>,
-                    path : &LocPath,
-                    loc : &mut Loc) {
+                    loc_items: &mut Vec<LocItem>,
+                    path: &LocPath,
+                    loc: &mut Loc) {
     match self {
         Layout::Prim(item) => {
             let mut item_path = path.to_vec();
@@ -470,11 +470,11 @@ pub enum PacketDef<T> {
 
 #[derive(PartialEq, Debug, Deserialize, Serialize)]
 pub struct Packet {
-    packet : LayoutPacketDef,
-    required : HashMap<Name, Value>,
-    //limits : HashMap<Name, Limit>
-    //expected : HashMap<Name, Value>,
-    //derived : HashMap<Name, Expr>,
+    packet: LayoutPacketDef,
+    required: HashMap<Name, Value>,
+    //limits: HashMap<Name, Limit>
+    //expected: HashMap<Name, Value>,
+    //derived: HashMap<Name, Expr>,
 }
 
 pub type LocPacketDef = PacketDef<LocItem>;
@@ -483,7 +483,7 @@ pub type LayoutPacketDef = PacketDef<Item>;
 
 impl NumBytes for LayoutPacketDef {
     fn num_bytes(&self) -> u64 {
-        let mut num_bytes : u64 = 0;
+        let mut num_bytes: u64 = 0;
 
         match self {
             PacketDef::Seq(name, packets) => {
@@ -493,7 +493,7 @@ impl NumBytes for LayoutPacketDef {
             },
 
             PacketDef::Subcom(name, item, pairs) => {
-                let mut subcom_bytes :u64 = 0;
+                let mut subcom_bytes:u64 = 0;
                 for (_, packet) in pairs {
                     cmp::max(subcom_bytes, packet.num_bytes());
                 }
@@ -523,7 +523,7 @@ impl NumBytes for LayoutPacketDef {
 
 impl LayoutPacketDef {
     pub fn names(&self) -> HashSet<&Name> {
-        let mut names : HashSet<&Name> = HashSet::new();
+        let mut names: HashSet<&Name> = HashSet::new();
         match self {
             PacketDef::Seq(name, packets) => {
                 for packet in packets {
@@ -553,7 +553,7 @@ impl LayoutPacketDef {
     // correct locations for LocItems!
     pub fn locate(&self) -> Option<LocLayout> {
         let mut offset = 0;
-        let mut loc_layout : LocLayout = LocLayout::new();
+        let mut loc_layout: LocLayout = LocLayout::new();
         let mut loc_path = LocPath::new();
 
         let result = LayoutPacketDef::locate_helper(self,
@@ -569,11 +569,11 @@ impl LayoutPacketDef {
         }
     }
     
-    fn locate_helper(packet     : &LayoutPacketDef, 
-                     offset     : &mut u64, 
-                     loc_layout : &mut LocLayout,
-                     loc_path   : &mut LocPath) -> bool {
-        let mut result : bool;
+    fn locate_helper(packet:      &LayoutPacketDef, 
+                     offset:      &mut u64, 
+                     loc_layout:  &mut LocLayout,
+                     loc_path:    &mut LocPath) -> bool {
+        let mut result: bool;
 
         match packet {
             PacketDef::Seq(name, packets) => {
@@ -664,7 +664,7 @@ impl Clone for Value {
 }
 
 impl fmt::Display for Value {
-  fn fmt(&self, f : &mut fmt::Formatter) -> fmt::Result {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
       Value::U8(value)         => write!(f, "{}", value),
       Value::U16(value)        => write!(f, "{}", value),
@@ -704,24 +704,24 @@ impl Value {
 
 #[derive(PartialEq, PartialOrd, Debug)]
 pub struct Point {
-    pub name : Name,
-    pub val : Value,
+    pub name: Name,
+    pub val: Value,
 }
 
 impl Point {
-    pub fn new(name : Name, val : Value) -> Point {
-        Point { name : name, val : val }
+    pub fn new(name: Name, val: Value) -> Point {
+        Point { name: name, val: val }
     }
 }
 
 #[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
 pub struct ValueMap {
-    pub value_map : FnvHashMap<Name, ValueEntry>,
+    pub value_map: FnvHashMap<Name, ValueEntry>,
 }
 
 impl ValueMap {
-    pub fn new(value_map : FnvHashMap<Name, ValueEntry>) -> ValueMap {
-        ValueMap { value_map : value_map }
+    pub fn new(value_map: FnvHashMap<Name, ValueEntry>) -> ValueMap {
+        ValueMap { value_map: value_map }
     }
 
     pub fn values(&self) -> Vec<&Value> {
@@ -748,7 +748,7 @@ impl ValueMap {
         values
     }
 
-    pub fn lookup(&self, name : &Name) -> Option<Value> {
+    pub fn lookup(&self, name: &Name) -> Option<Value> {
         match self.value_map.get(name) {
             Some(ValueEntry::Leaf(value)) =>
                 return Some(value.clone()),
@@ -788,5 +788,39 @@ pub enum ValueEntry {
     Leaf(Value),
     Section(ValueMap),
     Array(Vec<ValueMap>),
+}
+
+#[derive(Debug)]
+pub struct PacketStream<'a> {
+    layout_packet: LayoutPacketDef,
+    bytes: &'a Vec<u8>,
+    position: usize,
+    num_bytes: usize,
+}
+
+impl<'a> PacketStream<'a> {
+    pub fn new(layout_packet: LayoutPacketDef, bytes: &'a Vec<u8>) -> PacketStream {
+        PacketStream { layout_packet: layout_packet,
+                       bytes: bytes,
+                       position: 0,
+                       num_bytes: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for PacketStream<'a> {
+    type Item = &'a[u8];
+
+    fn next(&mut self) -> Option<&'a[u8]> {
+        if (self.position + self.num_bytes) < self.bytes.len() {
+            let prev_position = self.position;
+
+            self.position += self.num_bytes;
+
+            Some(&self.bytes[prev_position..(prev_position + self.num_bytes)])
+        } else {
+            None
+        }
+    }
 }
 

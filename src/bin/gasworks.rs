@@ -4,10 +4,12 @@ extern crate serde;
 #[cfg(feature = "profile")]extern crate flame;
 extern crate gasworks;
 extern crate crossbeam_channel;
+extern crate rayon;
 
 use std::thread;
 use std::io::{Cursor, Read};
 use std::fs::File;
+use std::sync::{Arc};
 
 #[macro_use] extern crate quicli;
 use quicli::prelude::*;
@@ -16,6 +18,8 @@ use memmap::{ MmapOptions };
 
 use crossbeam_channel as channel;
 use crossbeam_channel::{Receiver, Sender};
+
+use rayon::scope;
 
 use gasworks::types::*;
 use gasworks::csv::*;
@@ -152,14 +156,14 @@ main!(|args: Cli, log_level : verbosity| {
     //let length = mmap.len();
     //let mut bytes = Cursor::new(mmap);
 
+    let num_threads: usize = 10;
+
     let packet : LayoutPacketDef = vn200_tlm;
 
     // Write CSV header
     layoutpacket_csvheader(&packet, &mut writer);
 
     let num_bytes = packet.num_bytes() as usize;
-    println!("num_bytes = {}", num_bytes);
-
     let num_names = packet.names().len();
 
     let mut record : Vec<String> = Vec::with_capacity(num_names);
@@ -170,77 +174,105 @@ main!(|args: Cli, log_level : verbosity| {
     let maybe_located = packet.locate();
     let loc_layout = maybe_located.unwrap();
 
-    let num_threads = 10;
-
     // read whole file
-    let mut byte_vec: Vec<u8> = Vec::new();
-    File::open(args.infile).unwrap().read_to_end(&mut byte_vec).unwrap();
+    let byte_vec: Vec<u8>;
+
+    {
+        let mut byte_vec_mut: Vec<u8> = Vec::new();
+        File::open(args.infile).unwrap().read_to_end(&mut byte_vec_mut).unwrap();
+        byte_vec = byte_vec_mut;
+    }
+
     let length = byte_vec.len() as usize;
 
+
+    let byte_vec = Arc::new(byte_vec);
     // set up thread system
-    let mut threads = Vec::new();
-    let mut senders_locs: Vec<Sender<u64>> = Vec::new();
-    let mut receivers_points: Vec<Receiver<Vec<Point>>>   = Vec::new();
+    rayon::scope(|scope| {
+        let mut senders_locs: Vec<Sender<Option<usize>>>            = Vec::new();
+        let mut receivers_locs: Vec<Receiver<Option<usize>>>        = Vec::new();
+        let mut receivers_points: Vec<Receiver<Option<Vec<Point>>>> = Vec::new();
+        let mut senders_points: Vec<Sender<Option<Vec<Point>>>>     = Vec::new();
 
-    for _ in 0..num_threads {
-        let (send_loc, receive_loc) = channel::bounded(10);
-        senders_locs.push(send_loc);
+        for _ in 0..num_threads {
+            let (send_loc, receive_loc) = channel::bounded(10);
+            let receive_loc = (receive_loc);
+            senders_locs.push((send_loc));
+            receivers_locs.push(receive_loc.clone());
 
-        let (send_points, receive_points) = channel::bounded(10);
-        receivers_points.push(receive_points);
+            let (send_points, receive_points) = channel::bounded(10);
+            let send_points = (send_points);
+            receivers_points.push((receive_points));
+            senders_points.push(send_points.clone());
 
-        let loc_layout = loc_layout.clone();
-        threads.push(thread::spawn(move || {
-            while let Some(loc) = receive_loc.recv() {
-                let layout_bytes: &[u8] =
-                    &byte_vec[loc .. (loc + num_bytes as usize)];
-                let points = decode_loc_layout(&loc_layout, &mut Cursor::new(layout_bytes));
-                send_points.send(points);
-            }
-        }));
-    }
-
-    threads.push(thread::spawn(move || {
-        let mut record : Vec<String> = Vec::with_capacity(num_names);
-        for _ in 0..record.capacity() {
-            record.push(String::with_capacity(64));
+            let loc_layout = loc_layout.clone();
+            let byte_vec = byte_vec.clone();
+            scope.spawn(move |_| {
+                while let Some(loc) = receive_loc.recv() {
+                    match loc {
+                        Some(loc) => {
+                            let layout_bytes: &[u8] =
+                                &byte_vec[loc .. (loc + num_bytes as usize)];
+                            let points = decode_loc_layout(&loc_layout, &mut Cursor::new(layout_bytes));
+                            send_points.send(Some(points));
+                        },
+                        None => {
+                            send_points.send(None);
+                            break;
+                        },
+                    }
+                }
+            });
         }
+
+        scope.spawn(move |_| {
+            let mut record : Vec<String> = Vec::with_capacity(num_names);
+            for _ in 0..record.capacity() {
+                record.push(String::with_capacity(64));
+            }
+
+            let mut index = 0;
+
+            while let Some(points) = receivers_points[index].recv() {
+                match points {
+                    Some(points) => {
+                        points.iter()
+                              .zip(record.iter_mut())
+                              .map(|(point, csv_line)| {
+                                csv_line.clear();
+                                csv_line.push_str(&format!("{}", point.val));
+                        }).collect::<()>();
+
+                        writer.write_record(&record).unwrap();
+                        index = (index + 1) % num_threads;
+                    },
+
+                    None => {
+                        break;
+                    },
+                }
+            }
+        });
+
 
         let mut index = 0;
-
-        while let Some(points) = receivers_points[index].recv() {
-            points.iter()
-                  .zip(record.iter_mut())
-                  .map(|(point, csv_line)| {
-                    csv_line.clear();
-                    csv_line.push_str(&format!("{}", point.val));
-            }).collect::<()>();
-
-            writer.write_record(&record).unwrap();
-            index = (index + 1) % num_threads;
-        }
-    }));
-
-
-    let mut index = 0;
-    // Decode file and write out CSV
-    let mut position : usize = 0;
-    #[cfg(feature = "profile")] flame::start("main loop");
-    while (position + num_bytes) < length as usize {
-        {
-            senders_locs[index].send(position);
+        // Decode file and write out CSV
+        let mut position : usize = 0;
+        #[cfg(feature = "profile")] flame::start("main loop");
+        while (position + num_bytes) < length as usize {
+            senders_locs[index].send(Some(position));
 
             index = (index + 1) % num_threads;
+
+            // advance cursor to next structure
+            position += num_bytes as usize;
         }
 
-        // advance cursor to next structure
-        position += num_bytes as usize;
-    }
-    #[cfg(feature = "profile")] flame::end("main loop");
-
-    for thread in threads {
-        thread.join();
-    }
+        for sender in senders_locs {
+            sender.send(None);
+        }
+        #[cfg(feature = "profile")] flame::end("main loop");
+    });
 
     #[cfg(feature = "profile")]
     flame::dump_html(&mut File::create("flame-gasworks.html").unwrap()).unwrap();

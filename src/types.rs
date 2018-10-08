@@ -792,18 +792,19 @@ pub enum ValueEntry {
 
 #[derive(Debug)]
 pub struct PacketStream<'a> {
-    layout_packet: LayoutPacketDef,
+    loc_layout: LocLayout,
     bytes: &'a Vec<u8>,
     position: usize,
     num_bytes: usize,
 }
 
 impl<'a> PacketStream<'a> {
-    pub fn new(layout_packet: LayoutPacketDef, bytes: &'a Vec<u8>) -> PacketStream {
-        PacketStream { layout_packet: layout_packet,
+    pub fn new(packet: LayoutPacketDef, bytes: &'a Vec<u8>) -> PacketStream {
+        let loc_layout = packet.locate().unwrap();
+        PacketStream { loc_layout: loc_layout,
                        bytes: bytes,
                        position: 0,
-                       num_bytes: 0,
+                       num_bytes: packet.num_bytes() as usize,
         }
     }
 }

@@ -43,3 +43,21 @@ release build, rayon threading, 1 per channel, 26 seconds
 
 Eleventh Attempt:
 release build, rayon threading, 1 per channel, 24 seconds
+
+12th Attempt:
+release build, multithreading, 4 threads, 6.5 seconds
+
+13th Attempt:
+release, 10 packet, 10 line
+threads, seconds
+1, 19.78
+2, 11.67
+3,  9.07
+4,  7.87
+5,  6.81
+6,  6.31
+7,  6.489
+8,  7.513
+
+2000 line, 2000 packet, 8 threads, 5 seconds
+18 MBps

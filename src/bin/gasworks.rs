@@ -4,25 +4,29 @@ extern crate serde;
 #[cfg(feature = "profile")]extern crate flame;
 extern crate gasworks;
 extern crate crossbeam_channel;
-extern crate rayon;
-extern crate futures;
+extern crate crossbeam;
+//extern crate rayon;
+//extern crate futures;
+extern crate sorted_list;
 
-use std::thread;
+//use std::thread;
 use std::io::{Cursor, Read};
 use std::fs::File;
-use std::sync::{Arc};
+//use std::sync::{Arc};
 
-use futures::future::*;
+//use futures::future::*;
 
 #[macro_use] extern crate quicli;
 use quicli::prelude::*;
 
-use memmap::{ MmapOptions };
+//use memmap::{ MmapOptions };
 
 use crossbeam_channel as channel;
 use crossbeam_channel::{Receiver, Sender};
 
-use rayon::scope;
+//use rayon::scope;
+
+//use sorted_list::SortedList;
 
 use gasworks::types::*;
 use gasworks::csv::*;
@@ -34,6 +38,15 @@ struct Cli {
     infile : String,
 
     outfile : String,
+
+    #[structopt(short="t", long="threads", default_value="10")]
+    num_threads: u16,
+
+    #[structopt(short="p", long="packetqueue", default_value="20")]
+    packet_queue_depth: u16,
+
+    #[structopt(short="l", long="linequeue", default_value="20")]
+    line_queue_depth: u16,
 
     #[structopt(flatten)]
     verbosity : Verbosity,
@@ -100,7 +113,8 @@ pub fn format_points(points: &Vec<Point>, records: &mut Vec<String>) {
           .zip(records.iter_mut())
           .map(|(point, csv_line)| {
             csv_line.clear();
-            csv_line.push_str(&format!("{}", point.val));
+            let line = &format!("{}", point.val);
+            csv_line.push_str(line);
     }).collect::<()>();
 }
 
@@ -167,7 +181,7 @@ main!(|args: Cli, log_level : verbosity| {
     //let length = mmap.len();
     //let mut bytes = Cursor::new(mmap);
 
-    let num_threads: usize = 10;
+    let num_threads: usize = args.num_threads as usize;
 
     let packet : LayoutPacketDef = vn200_tlm;
 
@@ -196,17 +210,66 @@ main!(|args: Cli, log_level : verbosity| {
 
     let packet_stream = PacketStream::new(packet, &byte_vec);
 
-    packet_stream.map(|packet| {
-        let decode_future =
-            ok(packet).and_then(|packet| {
-                let mut records : Vec<String> = Vec::with_capacity(num_names);
-                decode_loc_layout(&loc_layout, &mut Cursor::new(packet));
-                format_points(&points, &mut records);
-                records
-            });
-        writer.write_record(&mut records).unwrap();
-    }).collect::<()>();
+    let (send_line, receive_line): (Sender<Option<Vec<String>>>, Receiver<Option<Vec<String>>>)
+        = channel::bounded(args.line_queue_depth as usize);
+    let (pack_sender, pack_receiver) =
+        channel::bounded(args.packet_queue_depth as usize);
 
+    crossbeam::scope(|scope| {
+        for thread_index in 0..num_threads {
+            scope.spawn(|| {
+                //println!("processing thread spawned");
+                while let Some(option_packet) = pack_receiver.recv() {
+                    match option_packet {
+                        Some(packet) => {
+                            //println!("received packet");
+                            let points = decode_loc_layout(&loc_layout, &mut Cursor::new(packet));
+
+                            let mut records : Vec<String> = Vec::with_capacity(points.len());
+                            for _ in 0..points.len() {
+                                records.push("".to_string());
+                            }
+
+                            format_points(&points, &mut records);
+
+                            send_line.send(Some(records));
+                        },
+                        None => break,
+                    }
+                }
+                send_line.send(None);
+                //println!("processing thread finished");
+            });
+        }
+
+        scope.spawn(|| {
+            //println!("writing thread spawned");
+            let mut channel_index = 0;
+            while let Some(option_records) = receive_line.recv() {
+                match option_records {
+                    Some(records) => {
+                        writer.write_record(&mut records.iter());
+                        channel_index = (channel_index + 1) % num_threads;
+                    },
+
+                    None => break,
+                }
+            }
+            //println!("writing thread finished");
+        });
+
+        for packet in packet_stream {
+            pack_sender.send(Some(packet));
+            //println!("sent packet");
+        }
+
+
+        //println!("writing Nones");
+        for thread_index in 0..num_threads {
+            pack_sender.send(None);
+        }
+        //println!("wrote Nones");
+    });
 
     #[cfg(feature = "profile")]
     flame::dump_html(&mut File::create("flame-gasworks.html").unwrap()).unwrap();

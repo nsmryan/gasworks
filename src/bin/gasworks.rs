@@ -11,7 +11,7 @@ extern crate sorted_list;
 extern crate revord;
 
 //use std::thread;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write};
 use std::fs::File;
 use std::collections::BinaryHeap;
 //use std::sync::{Arc};
@@ -43,13 +43,13 @@ struct Cli {
 
     outfile : String,
 
-    #[structopt(short="t", long="threads", default_value="10")]
+    #[structopt(short="t", long="threads", default_value="7")]
     num_threads: u16,
 
     #[structopt(short="p", long="packetqueue", default_value="20")]
     packet_queue_depth: u16,
 
-    #[structopt(short="l", long="linequeue", default_value="20")]
+    #[structopt(short="l", long="linequeue", default_value="100")]
     line_queue_depth: u16,
 
     #[structopt(short="s", long="single")]
@@ -115,17 +115,7 @@ pub fn array_var<T>(name : Name, var_name : Name, packet : PacketDef<T>) -> Pack
     PacketDef::Array(name, ArrSize::Var(var_name), Box::new(packet))
 }
 
-pub fn format_points(points: &Vec<Point>, records: &mut Vec<String>) {
-    points.iter()
-          .zip(records.iter_mut())
-          .map(|(point, csv_line)| {
-            csv_line.clear();
-            let line = &format!("{}", point.val);
-            csv_line.push_str(line);
-    }).collect::<()>();
-}
-
-fn get_current_index(queue: &BinaryHeap<(RevOrd<usize>, Vec<String>)>) -> usize {
+fn get_current_index<T: std::cmp::Ord>(queue: &BinaryHeap<(RevOrd<usize>, T)>) -> usize {
     let revord = queue.peek().unwrap();
     let current_index = &revord.0;
 
@@ -134,7 +124,8 @@ fn get_current_index(queue: &BinaryHeap<(RevOrd<usize>, Vec<String>)>) -> usize 
 
 main!(|args: Cli, log_level : verbosity| {
     // Open output file
-    let mut writer = csv::Writer::from_path(args.outfile).unwrap(); 
+    //let mut writer = csv::Writer::from_path(args.outfile).unwrap(); 
+    let mut writer = File::create(args.outfile).unwrap();
 
     let vn200_tlm : LayoutPacketDef = 
       seq("vn200".to_string(),
@@ -204,11 +195,6 @@ main!(|args: Cli, log_level : verbosity| {
 
     let num_names = packet.names().len();
 
-    let mut records : Vec<String> = Vec::with_capacity(num_names);
-    for _ in 0..records.capacity() {
-        records.push(String::with_capacity(64));
-    }
-
     let maybe_located = packet.locate();
     let loc_layout = maybe_located.unwrap();
 
@@ -224,15 +210,14 @@ main!(|args: Cli, log_level : verbosity| {
     let packet_stream = PacketStream::new(packet, &byte_vec);
 
     if args.single_threaded {
+        let mut line = String::new();
+
         for packet in packet_stream {
             let points = decode_loc_layout(&loc_layout, &mut Cursor::new(packet));
-            let mut records : Vec<String> = Vec::with_capacity(points.len());
-            for _ in 0..points.len() {
-                records.push("".to_string());
-            }
 
-            format_points(&points, &mut records);
-            writer.write_record(&mut records.iter());
+            points_to_str(&points, &mut line);
+
+            writer.write(line.as_bytes());
         }
     }
     else {
@@ -254,41 +239,38 @@ main!(|args: Cli, log_level : verbosity| {
                                 for _ in 0..points.len() {
                                     records.push("".to_string());
                                 }
+                                let mut line = String::new();
 
-                                format_points(&points, &mut records);
+                                points_to_str(&points, &mut line);
 
-                                send_line.send(Some((records, index)));
+                                send_line.send(Some((line, index)));
                             },
                             None => break,
                         }
                     }
-                    println!("processing thread finished");
                 });
                 join_handles.push(join_handle);
             }
 
             scope.spawn(|| {
-                //println!("writing thread spawned");
                 let mut to_write = BinaryHeap::new();
                 let mut next_index = 0;
 
-                while let Some(option_records) = receive_line.recv() {
-                    match option_records {
-                        Some((records, index)) => {
-                            to_write.push((RevOrd(index), records));
+                while let Some(option_line) = receive_line.recv() {
+                    match option_line {
+                        Some((line, index)) => {
+                            to_write.push((RevOrd(index), line));
 
                             let ixs: Vec<usize> = to_write.iter().map(|(ix, _)| (*ix).0).collect();
-                            println!("{:?}", ixs);
 
                             // process stored records
                             while to_write.len() > 0 {
                                 let current_index = get_current_index(&to_write);
                                 if current_index == next_index {
-                                    let (_, record) = to_write.pop().unwrap();
-                                    writer.write_record(&mut record.iter());
+                                    let (_, line) = to_write.pop().unwrap();
+                                    writer.write(line.as_bytes());
                                     next_index += 1;
                                     writer.flush();
-                                    println!("writing {:?}", record);
                                 }
                                 else {
                                     break;
@@ -299,13 +281,11 @@ main!(|args: Cli, log_level : verbosity| {
                         None => break,
                     }
                 }
-                println!("writing thread finished");
             });
 
             let mut index = 0;
             for packet in packet_stream {
                 pack_sender.send(Some((packet, index)));
-                println!("sent packet {}", index);
                 index += 1;
             }
 
@@ -316,7 +296,6 @@ main!(|args: Cli, log_level : verbosity| {
             for joiner in join_handles {
                 joiner.join();
             }
-            println!("joined");
             send_line.send(None);
         });
     }

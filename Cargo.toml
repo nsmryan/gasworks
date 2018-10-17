@@ -30,6 +30,7 @@ crossbeam="0.4"
 #futures = "0.1.24"
 sorted-list="0.2"
 revord = "0.0.2"
+itertools="0.7.8"
 
 [features]
 profile = ["flame"]

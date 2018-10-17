@@ -52,6 +52,9 @@ struct Cli {
     #[structopt(short="l", long="linequeue", default_value="20")]
     line_queue_depth: u16,
 
+    #[structopt(short="s", long="single")]
+    single_threaded: bool,
+
     #[structopt(flatten)]
     verbosity : Verbosity,
 }
@@ -220,90 +223,103 @@ main!(|args: Cli, log_level : verbosity| {
 
     let packet_stream = PacketStream::new(packet, &byte_vec);
 
-    let (send_line, receive_line) = channel::bounded(args.line_queue_depth as usize);
+    if args.single_threaded {
+        for packet in packet_stream {
+            let points = decode_loc_layout(&loc_layout, &mut Cursor::new(packet));
+            let mut records : Vec<String> = Vec::with_capacity(points.len());
+            for _ in 0..points.len() {
+                records.push("".to_string());
+            }
 
-    let (pack_sender, pack_receiver) = channel::bounded(args.packet_queue_depth as usize);
+            format_points(&points, &mut records);
+            writer.write_record(&mut records.iter());
+        }
+    }
+    else {
+        let (send_line, receive_line) = channel::bounded(args.line_queue_depth as usize);
 
-    crossbeam::scope(|scope| {
-        let mut join_handles = Vec::new();
+        let (pack_sender, pack_receiver) = channel::bounded(args.packet_queue_depth as usize);
 
-        for _ in 0..num_threads {
-            let join_handle = scope.spawn(|| {
-                while let Some(option_packet) = pack_receiver.recv() {
-                    match option_packet {
-                        Some((packet, index)) => {
-                            let points = decode_loc_layout(&loc_layout, &mut Cursor::new(packet));
+        crossbeam::scope(|scope| {
+            let mut join_handles = Vec::new();
 
-                            let mut records : Vec<String> = Vec::with_capacity(points.len());
-                            for _ in 0..points.len() {
-                                records.push("".to_string());
+            for _ in 0..num_threads {
+                let join_handle = scope.spawn(|| {
+                    while let Some(option_packet) = pack_receiver.recv() {
+                        match option_packet {
+                            Some((packet, index)) => {
+                                let points = decode_loc_layout(&loc_layout, &mut Cursor::new(packet));
+
+                                let mut records : Vec<String> = Vec::with_capacity(points.len());
+                                for _ in 0..points.len() {
+                                    records.push("".to_string());
+                                }
+
+                                format_points(&points, &mut records);
+
+                                send_line.send(Some((records, index)));
+                            },
+                            None => break,
+                        }
+                    }
+                    println!("processing thread finished");
+                });
+                join_handles.push(join_handle);
+            }
+
+            scope.spawn(|| {
+                //println!("writing thread spawned");
+                let mut to_write = BinaryHeap::new();
+                let mut next_index = 0;
+
+                while let Some(option_records) = receive_line.recv() {
+                    match option_records {
+                        Some((records, index)) => {
+                            to_write.push((RevOrd(index), records));
+
+                            let ixs: Vec<usize> = to_write.iter().map(|(ix, _)| (*ix).0).collect();
+                            println!("{:?}", ixs);
+
+                            // process stored records
+                            while to_write.len() > 0 {
+                                let current_index = get_current_index(&to_write);
+                                if current_index == next_index {
+                                    let (_, record) = to_write.pop().unwrap();
+                                    writer.write_record(&mut record.iter());
+                                    next_index += 1;
+                                    writer.flush();
+                                    println!("writing {:?}", record);
+                                }
+                                else {
+                                    break;
+                                }
                             }
-
-                            format_points(&points, &mut records);
-
-                            send_line.send(Some((records, index)));
                         },
+
                         None => break,
                     }
                 }
-                println!("processing thread finished");
+                println!("writing thread finished");
             });
-            join_handles.push(join_handle);
-        }
 
-        scope.spawn(|| {
-            //println!("writing thread spawned");
-            let mut to_write = BinaryHeap::new();
-            let mut next_index = 0;
-
-            while let Some(option_records) = receive_line.recv() {
-                match option_records {
-                    Some((records, index)) => {
-                        to_write.push((RevOrd(index), records));
-
-                        let ixs: Vec<usize> = to_write.iter().map(|(ix, _)| (*ix).0).collect();
-                        println!("{:?}", ixs);
-
-                        // process stored records
-                        while to_write.len() > 0 {
-                            let current_index = get_current_index(&to_write);
-                            if current_index == next_index {
-                                let (_, record) = to_write.pop().unwrap();
-                                writer.write_record(&mut record.iter());
-                                next_index += 1;
-                                writer.flush();
-                                println!("writing");
-                            }
-                            else {
-                                break;
-                            }
-                        }
-                    },
-
-                    None => break,
-                }
+            let mut index = 0;
+            for packet in packet_stream {
+                pack_sender.send(Some((packet, index)));
+                println!("sent packet {}", index);
+                index += 1;
             }
-            println!("writing thread finished");
+
+            for _ in 0..num_threads {
+                pack_sender.send(None);
+            }
+
+            for joiner in join_handles {
+                joiner.join();
+            }
+            println!("joined");
+            send_line.send(None);
         });
-
-        let mut index = 0;
-        for packet in packet_stream {
-            pack_sender.send(Some((packet, index)));
-            println!("sent packet {}", index);
-            index += 1;
-        }
-
-        //println!("writing Nones");
-        for _ in 0..num_threads {
-            pack_sender.send(None);
-        }
-
-        for joiner in join_handles {
-            joiner.join();
-        }
-        println!("joined");
-        send_line.send(None);
-    });
+    }
 
     #[cfg(feature = "profile")]
     flame::dump_html(&mut File::create("flame-gasworks.html").unwrap()).unwrap();

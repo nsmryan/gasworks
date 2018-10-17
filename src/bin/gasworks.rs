@@ -8,10 +8,12 @@ extern crate crossbeam;
 //extern crate rayon;
 //extern crate futures;
 extern crate sorted_list;
+extern crate revord;
 
 //use std::thread;
 use std::io::{Cursor, Read};
 use std::fs::File;
+use std::collections::BinaryHeap;
 //use std::sync::{Arc};
 
 //use futures::future::*;
@@ -23,6 +25,8 @@ use quicli::prelude::*;
 
 use crossbeam_channel as channel;
 use crossbeam_channel::{Receiver, Sender};
+
+use revord::RevOrd;
 
 //use rayon::scope;
 
@@ -116,6 +120,13 @@ pub fn format_points(points: &Vec<Point>, records: &mut Vec<String>) {
             let line = &format!("{}", point.val);
             csv_line.push_str(line);
     }).collect::<()>();
+}
+
+fn get_current_index(queue: &BinaryHeap<(RevOrd<usize>, Vec<String>)>) -> usize {
+    let revord = queue.peek().unwrap();
+    let current_index = &revord.0;
+
+    return current_index.0;
 }
 
 main!(|args: Cli, log_level : verbosity| {
@@ -242,57 +253,44 @@ main!(|args: Cli, log_level : verbosity| {
 
         scope.spawn(|| {
             //println!("writing thread spawned");
-            let mut to_write: Vec<(Vec<String>, usize)> = Vec::new();
+            let mut to_write = BinaryHeap::new();
             let mut next_index = 0;
 
             while let Some(option_records) = receive_line.recv() {
                 match option_records {
                     Some((records, index)) => {
+                        to_write.push((RevOrd(index), records));
 
-                        // find the index to insert the new packet:
-                        let mut vector_index = 0;
-                        for (packet, stored_index) in to_write.clone() {
-                            if stored_index > index {
-                                break;
-                            }
-
-                            vector_index += 1;
-                        }
-                        to_write.insert(vector_index, (records, index));
+                        let ixs: Vec<usize> = to_write.iter().map(|(ix, _)| (*ix).0).collect();
+                        println!("{:?}", ixs);
 
                         // process stored records
-                        let mut records_processed = 0;
-                        for (record, current_index) in to_write.clone() {
+                        while to_write.len() > 0 {
+                            let current_index = get_current_index(&to_write);
                             if current_index == next_index {
+                                let (_, record) = to_write.pop().unwrap();
                                 writer.write_record(&mut record.iter());
                                 next_index += 1;
-                                records_processed += 1;
                                 writer.flush();
+                                println!("writing");
                             }
-                            else
-                            {
+                            else {
                                 break;
                             }
                         }
-
-                        for _ in 0..records_processed {
-                            to_write.pop();
-                        }
-                        let ixs: Vec<usize> = to_write.iter().map(|(_, ix)| *ix).collect();
-                        println!("stored = {:?}", ixs);
                     },
 
                     None => break,
                 }
             }
-            //println!("writing thread finished");
+            println!("writing thread finished");
         });
 
         let mut index = 0;
         for packet in packet_stream {
             pack_sender.send(Some((packet, index)));
+            println!("sent packet {}", index);
             index += 1;
-            //println!("sent packet");
         }
 
         //println!("writing Nones");

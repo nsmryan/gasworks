@@ -188,7 +188,6 @@ main!(|args: Cli, log_level : verbosity| {
     // Write CSV header
     layoutpacket_csvheader(&packet, &mut writer);
 
-    let num_bytes = packet.num_bytes() as usize;
     let num_names = packet.names().len();
 
     let mut records : Vec<String> = Vec::with_capacity(num_names);
@@ -210,19 +209,18 @@ main!(|args: Cli, log_level : verbosity| {
 
     let packet_stream = PacketStream::new(packet, &byte_vec);
 
-    let (send_line, receive_line): (Sender<Option<Vec<String>>>, Receiver<Option<Vec<String>>>)
-        = channel::bounded(args.line_queue_depth as usize);
-    let (pack_sender, pack_receiver) =
-        channel::bounded(args.packet_queue_depth as usize);
+    let (send_line, receive_line) = channel::bounded(args.line_queue_depth as usize);
+
+    let (pack_sender, pack_receiver) = channel::bounded(args.packet_queue_depth as usize);
 
     crossbeam::scope(|scope| {
-        for thread_index in 0..num_threads {
-            scope.spawn(|| {
-                //println!("processing thread spawned");
+        let mut join_handles = Vec::new();
+
+        for _ in 0..num_threads {
+            let join_handle = scope.spawn(|| {
                 while let Some(option_packet) = pack_receiver.recv() {
                     match option_packet {
-                        Some(packet) => {
-                            //println!("received packet");
+                        Some((packet, index)) => {
                             let points = decode_loc_layout(&loc_layout, &mut Cursor::new(packet));
 
                             let mut records : Vec<String> = Vec::with_capacity(points.len());
@@ -232,24 +230,56 @@ main!(|args: Cli, log_level : verbosity| {
 
                             format_points(&points, &mut records);
 
-                            send_line.send(Some(records));
+                            send_line.send(Some((records, index)));
                         },
                         None => break,
                     }
                 }
-                send_line.send(None);
-                //println!("processing thread finished");
+                println!("processing thread finished");
             });
+            join_handles.push(join_handle);
         }
 
         scope.spawn(|| {
             //println!("writing thread spawned");
-            let mut channel_index = 0;
+            let mut to_write: Vec<(Vec<String>, usize)> = Vec::new();
+            let mut next_index = 0;
+
             while let Some(option_records) = receive_line.recv() {
                 match option_records {
-                    Some(records) => {
-                        writer.write_record(&mut records.iter());
-                        channel_index = (channel_index + 1) % num_threads;
+                    Some((records, index)) => {
+
+                        // find the index to insert the new packet:
+                        let mut vector_index = 0;
+                        for (packet, stored_index) in to_write.clone() {
+                            if stored_index > index {
+                                break;
+                            }
+
+                            vector_index += 1;
+                        }
+                        to_write.insert(vector_index, (records, index));
+
+                        // process stored records
+                        let mut records_processed = 0;
+                        for (record, current_index) in to_write.clone() {
+                            if current_index == next_index {
+                                writer.write_record(&mut record.iter());
+                                next_index += 1;
+                                records_processed += 1;
+                                writer.flush();
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+
+                        for _ in 0..records_processed {
+                            to_write.pop();
+                        }
+                        let ixs: Vec<usize> = to_write.iter().map(|(_, ix)| *ix).collect();
+                        println!("stored = {:?}", ixs);
                     },
 
                     None => break,
@@ -258,17 +288,23 @@ main!(|args: Cli, log_level : verbosity| {
             //println!("writing thread finished");
         });
 
+        let mut index = 0;
         for packet in packet_stream {
-            pack_sender.send(Some(packet));
+            pack_sender.send(Some((packet, index)));
+            index += 1;
             //println!("sent packet");
         }
 
-
         //println!("writing Nones");
-        for thread_index in 0..num_threads {
+        for _ in 0..num_threads {
             pack_sender.send(None);
         }
-        //println!("wrote Nones");
+
+        for joiner in join_handles {
+            joiner.join();
+        }
+        println!("joined");
+        send_line.send(None);
     });
 
     #[cfg(feature = "profile")]

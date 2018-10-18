@@ -76,7 +76,21 @@ main!(|args: Cli, log_level : verbosity| {
 
     let vn200_tlm : LayoutPacketDef = 
       seq("vn200".to_string(),
-          vec!(seq("group1".to_string(),
+          vec!(seq("ccsds_pri".to_string(),
+                   vec!(u16_le("packet_word"),
+                        u16_le("seq"),
+                        u16_le("size")
+                        )
+               ),
+
+               seq("ccsds_sec".to_string(),
+                   vec!(u16_le("flags"),
+                        u32_le("time_seconds"),
+                        u32_le("time_subseconds")
+                        )
+               ),
+
+               seq("group1".to_string(),
                    vec!(u8_be("sync"),
                         u8_le("groups"),
                         u16_le("group1Flags"),

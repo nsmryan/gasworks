@@ -6,6 +6,7 @@ use std::mem;
 use gasworks::types::*;
 use gasworks::prim::*;
 use gasworks::layout::*;
+use gasworks::value::*;
 
 
 fn main()

@@ -30,6 +30,7 @@ use bitreader::BitReader;
 use types::*;
 use prim::*;
 use layout::*;
+use value::*;
 
 
 pub fn decode_to_map(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {

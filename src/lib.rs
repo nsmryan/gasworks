@@ -34,6 +34,9 @@ use prim::*;
 pub mod layout;
 use layout::*;
 
+pub mod value;
+use value::*;
+
 pub mod csv;
 
 

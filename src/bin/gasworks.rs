@@ -32,6 +32,7 @@ use gasworks::*;
 use gasworks::types::*;
 use gasworks::csv::*;
 use gasworks::decode::*;
+use gasworks::value::*;
 
 
 #[derive(Debug, StructOpt)]

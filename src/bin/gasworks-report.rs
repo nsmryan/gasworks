@@ -3,10 +3,7 @@ extern crate gasworks;
 
 use std::mem;
 
-use gasworks::*;
 use gasworks::types::*;
-use gasworks::csv::*;
-use gasworks::decode::*;
 
 
 fn main()

@@ -20,8 +20,6 @@ use bytes::{Bytes, Buf};
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, BigEndian, ByteOrder};
 
-
-
 #[allow(unused_imports)]
 use std::io::{Cursor, Read};
 
@@ -33,6 +31,62 @@ use decode::*;
 
 pub mod csv;
 
+
+/* Convienence functions for creating data definitions.  */
+pub fn item(name : &str, typ : Prim) -> Item {
+    Item::new(name.to_string(), typ)
+}
+
+pub fn u8_be(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u8_be()))) }
+pub fn u8_le(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u8_le()))) }
+pub fn u16_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u16_be()))) }
+pub fn u16_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u16_le()))) }
+pub fn u32_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u32_be()))) }
+pub fn u32_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u32_le()))) }
+pub fn u64_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u64_be()))) }
+pub fn u64_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u64_le()))) }
+
+pub fn i8_be(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i8_be()))) }
+pub fn i8_le(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i8_le()))) }
+pub fn i16_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i16_be()))) }
+pub fn i16_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i16_le()))) }
+pub fn i32_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i32_be()))) }
+pub fn i32_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i32_le()))) }
+pub fn i64_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i64_be()))) }
+pub fn i64_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i64_le()))) }
+
+pub fn f32_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f32_be()))) }
+pub fn f32_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f32_le()))) }
+pub fn f64_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f64_be()))) }
+pub fn f64_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f64_le()))) }
+
+pub fn val_u8  (value : u8)  -> Value { Value::U8(value)  }
+pub fn val_u16 (value : u16) -> Value { Value::U16(value) }
+pub fn val_u32 (value : u32) -> Value { Value::U32(value) }
+pub fn val_u64 (value : u64) -> Value { Value::U64(value) }
+pub fn val_i8  (value : i8)  -> Value { Value::I8(value)  }
+pub fn val_i16 (value : i16) -> Value { Value::I16(value) }
+pub fn val_i32 (value : i32) -> Value { Value::I32(value) }
+pub fn val_i64 (value : i64) -> Value { Value::I64(value) }
+pub fn val_f32 (value : f32) -> Value { Value::F32(value) }
+pub fn val_f64 (value : f64) -> Value { Value::F64(value) }
+pub fn val_enum(name : Name, value : i64) -> Value { Value::Enum(name, value) }
+
+pub fn seq<T>(name : Name, packets : Vec<PacketDef<T>>) -> PacketDef<T> {
+    PacketDef::Seq(name, packets)
+}
+
+pub fn leaf<T>(item : T) -> PacketDef<T> {
+    PacketDef::Leaf(item)
+}
+
+pub fn array_fixed<T>(name : Name, size : usize, packet : PacketDef<T>) -> PacketDef<T> {
+    PacketDef::Array(name, ArrSize::Fixed(size), Box::new(packet))
+}
+
+pub fn array_var<T>(name : Name, var_name : Name, packet : PacketDef<T>) -> PacketDef<T> {
+    PacketDef::Array(name, ArrSize::Var(var_name), Box::new(packet))
+}
 
 pub fn identify_locpacket(packet : &LocPacketDef, bytes : &mut Cursor<&[u8]>) -> LocLayout
 {
@@ -111,22 +165,26 @@ fn identify_locpacket_helper(packet : &LocPacketDef,
 // This results in a map which initially maps each telemetry point
 // name to None, but can be updated with particular values when
 // decoding a particular packet.
-pub fn choice_points(packet : &LayoutPacketDef) -> ChoicePoints {
-    // NOTE consider passing a single hashmap around instead
-    // of using 'extend' on subtree's choice points.
+pub fn choice_points(packet: &LayoutPacketDef) -> ChoicePoints {
     let mut map = HashMap::new();
 
+    choice_points_helper(packet, &mut map);
+
+    map
+}
+
+pub fn choice_points_helper(packet: &LayoutPacketDef, map: &mut ChoicePoints) {
     match packet {
         PacketDef::Seq(name, packets) => {
             for packet in packets {
-                map.extend(choice_points(packet))
+                choice_points_helper(packet, map);
             }
         },
 
         PacketDef::Subcom(name, item, subcom) => {
             map.insert(item.name.clone(), None);
             for pair in subcom {
-                map.extend(choice_points(&pair.1))
+                choice_points_helper(&pair.1, map);
             }
         },
 
@@ -138,14 +196,12 @@ pub fn choice_points(packet : &LayoutPacketDef) -> ChoicePoints {
 
                 _ => (),
             }
-            map.extend(choice_points(packet));
+            choice_points_helper(packet, map);
         }
 
         PacketDef::Leaf(_) => {
             ()
         },
     } 
-
-    map
 }
 

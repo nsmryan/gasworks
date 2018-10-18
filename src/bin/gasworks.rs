@@ -24,14 +24,11 @@ use quicli::prelude::*;
 //use memmap::{ MmapOptions };
 
 use crossbeam_channel as channel;
-use crossbeam_channel::{Receiver, Sender};
+//use crossbeam_channel::{Receiver, Sender};
 
 use revord::RevOrd;
 
-//use rayon::scope;
-
-//use sorted_list::SortedList;
-
+use gasworks::*;
 use gasworks::types::*;
 use gasworks::csv::*;
 use gasworks::decode::*;
@@ -55,64 +52,11 @@ struct Cli {
     #[structopt(short="s", long="single")]
     single_threaded: bool,
 
+    #[structopt(short="i", long="items", default_value="")]
+    items: String,
+
     #[structopt(flatten)]
     verbosity : Verbosity,
-}
-
-/* Convienence functions for creating data definitions.  */
-pub fn item(name : &str, typ : Prim) -> Item {
-    Item::new(name.to_string(), typ)
-}
-
-pub fn u8_be(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u8_be()))) }
-pub fn u8_le(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u8_le()))) }
-pub fn u16_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u16_be()))) }
-pub fn u16_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u16_le()))) }
-pub fn u32_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u32_be()))) }
-pub fn u32_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u32_le()))) }
-pub fn u64_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u64_be()))) }
-pub fn u64_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u64_le()))) }
-
-pub fn i8_be(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i8_be()))) }
-pub fn i8_le(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i8_le()))) }
-pub fn i16_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i16_be()))) }
-pub fn i16_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i16_le()))) }
-pub fn i32_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i32_be()))) }
-pub fn i32_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i32_le()))) }
-pub fn i64_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i64_be()))) }
-pub fn i64_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::i64_le()))) }
-
-pub fn f32_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f32_be()))) }
-pub fn f32_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f32_le()))) }
-pub fn f64_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f64_be()))) }
-pub fn f64_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f64_le()))) }
-
-pub fn val_u8  (value : u8)  -> Value { Value::U8(value)  }
-pub fn val_u16 (value : u16) -> Value { Value::U16(value) }
-pub fn val_u32 (value : u32) -> Value { Value::U32(value) }
-pub fn val_u64 (value : u64) -> Value { Value::U64(value) }
-pub fn val_i8  (value : i8)  -> Value { Value::I8(value)  }
-pub fn val_i16 (value : i16) -> Value { Value::I16(value) }
-pub fn val_i32 (value : i32) -> Value { Value::I32(value) }
-pub fn val_i64 (value : i64) -> Value { Value::I64(value) }
-pub fn val_f32 (value : f32) -> Value { Value::F32(value) }
-pub fn val_f64 (value : f64) -> Value { Value::F64(value) }
-pub fn val_enum(name : Name, value : i64) -> Value { Value::Enum(name, value) }
-
-pub fn seq<T>(name : Name, packets : Vec<PacketDef<T>>) -> PacketDef<T> {
-    PacketDef::Seq(name, packets)
-}
-
-pub fn leaf<T>(item : T) -> PacketDef<T> {
-    PacketDef::Leaf(item)
-}
-
-pub fn array_fixed<T>(name : Name, size : usize, packet : PacketDef<T>) -> PacketDef<T> {
-    PacketDef::Array(name, ArrSize::Fixed(size), Box::new(packet))
-}
-
-pub fn array_var<T>(name : Name, var_name : Name, packet : PacketDef<T>) -> PacketDef<T> {
-    PacketDef::Array(name, ArrSize::Var(var_name), Box::new(packet))
 }
 
 fn get_current_index<T: std::cmp::Ord>(queue: &BinaryHeap<(RevOrd<usize>, T)>) -> usize {
@@ -190,14 +134,6 @@ main!(|args: Cli, log_level : verbosity| {
 
     let packet : LayoutPacketDef = vn200_tlm;
 
-    // Write CSV header
-    layoutpacket_csvheader(&packet, &mut writer);
-
-    let num_names = packet.names().len();
-
-    let maybe_located = packet.locate();
-    let loc_layout = maybe_located.unwrap();
-
     // read whole file
     let byte_vec: Vec<u8>;
 
@@ -207,6 +143,12 @@ main!(|args: Cli, log_level : verbosity| {
         byte_vec = byte_vec_mut;
     }
 
+    // Write CSV header
+    layoutpacket_csvheader(&packet, &mut writer);
+
+    // create packet stream
+    let maybe_located = packet.locate();
+    let loc_layout = maybe_located.unwrap();
     let packet_stream = PacketStream::new(packet, &byte_vec);
 
     if args.single_threaded {
@@ -217,7 +159,7 @@ main!(|args: Cli, log_level : verbosity| {
 
             points_to_str(&points, &mut line);
 
-            writer.write(line.as_bytes());
+            writer.write(line.as_bytes()).unwrap();
         }
     }
     else {
@@ -234,11 +176,6 @@ main!(|args: Cli, log_level : verbosity| {
                         match option_packet {
                             Some((packet, index)) => {
                                 let points = decode_loc_layout(&loc_layout, &mut Cursor::new(packet));
-
-                                let mut records : Vec<String> = Vec::with_capacity(points.len());
-                                for _ in 0..points.len() {
-                                    records.push("".to_string());
-                                }
                                 let mut line = String::new();
 
                                 points_to_str(&points, &mut line);
@@ -261,41 +198,40 @@ main!(|args: Cli, log_level : verbosity| {
                         Some((line, index)) => {
                             to_write.push((RevOrd(index), line));
 
-                            let ixs: Vec<usize> = to_write.iter().map(|(ix, _)| (*ix).0).collect();
-
-                            // process stored records
+                            // process stored lines
                             while to_write.len() > 0 {
                                 let current_index = get_current_index(&to_write);
                                 if current_index == next_index {
                                     let (_, line) = to_write.pop().unwrap();
-                                    writer.write(line.as_bytes());
+                                    writer.write(line.as_bytes()).unwrap();
                                     next_index += 1;
-                                    writer.flush();
+                                    writer.flush().unwrap();
                                 }
-                                else {
+                                else { // no lines to write
                                     break;
                                 }
                             }
                         },
 
+                        // if we receive None, end the task
                         None => break,
                     }
                 }
             });
 
+            // send packets to worker streams
             let mut index = 0;
             for packet in packet_stream {
                 pack_sender.send(Some((packet, index)));
                 index += 1;
             }
 
+            // send Nones to clean up workers
             for _ in 0..num_threads {
                 pack_sender.send(None);
             }
 
-            for joiner in join_handles {
-                joiner.join();
-            }
+            // send None to writer thread to end it.
             send_line.send(None);
         });
     }

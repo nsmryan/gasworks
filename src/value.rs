@@ -11,7 +11,6 @@ use std::collections::BTreeMap;
 use std::option;
 
 use std::fmt;
-use std::cmp;
 
 use self::fnv::FnvHashMap;
 

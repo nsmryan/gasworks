@@ -36,7 +36,20 @@ pub fn layoutpacket_csvheader(packet : &LayoutPacketDef,
         line.push_str(s);
         line.push_str(",");
     }).collect::<Vec<()>>();
+    line.push_str("\n");
 
+    writer.write(line.as_bytes());
+}
+
+pub fn loclayout_csvheader(loc_layout : &LocLayout,
+                           writer : &mut File)
+{
+    let mut line = String::new();
+
+    loc_layout.loc_items.iter().map(|loc_item| {
+        line.push_str(loc_item.name.last().unwrap());
+        line.push_str(",");
+    }).collect::<Vec<()>>();
     line.push_str("\n");
 
     writer.write(line.as_bytes());

@@ -13,6 +13,8 @@ extern crate revord;
 //use std::thread;
 use std::io::{Cursor, Read, Write};
 use std::fs::File;
+use std::vec::Vec;
+use std::iter::Filter;
 use std::collections::BinaryHeap;
 //use std::sync::{Arc};
 
@@ -21,7 +23,7 @@ use std::collections::BinaryHeap;
 #[macro_use] extern crate quicli;
 use quicli::prelude::*;
 
-//use memmap::{ MmapOptions };
+use memmap::{ MmapOptions };
 
 use crossbeam_channel as channel;
 //use crossbeam_channel::{Receiver, Sender};
@@ -129,7 +131,7 @@ main!(|args: Cli, log_level : verbosity| {
     //let file = File::open(args.infile)?;
     //let mmap = unsafe { MmapOptions::new().map(&file)? };
     //let length = mmap.len();
-    //let mut bytes = Cursor::new(mmap);
+    //let byte_vec = Vec::from_raw_parts(mmap.as_ptr(), length, length);
 
     let num_threads: usize = args.num_threads as usize;
 
@@ -144,12 +146,23 @@ main!(|args: Cli, log_level : verbosity| {
         byte_vec = byte_vec_mut;
     }
 
-    // Write CSV header
-    layoutpacket_csvheader(&packet, &mut writer);
-
     // create packet stream
-    let maybe_located = packet.locate();
-    let loc_layout = maybe_located.unwrap();
+    let mut loc_layout = packet.locate().unwrap();
+
+    // filter items to parse, if provided on the command line
+    if args.items.len() > 0 {
+        let names: Vec<String> =
+            args.items.split(",").map(|st| st.trim().to_string()).collect();
+
+        loc_layout.loc_items
+                  .retain(|item| {
+                      names.contains(&item.name.last().unwrap())
+                  });
+    }
+
+    // Write CSV header
+    loclayout_csvheader(&loc_layout, &mut writer);
+
     let packet_stream = PacketStream::new(packet, &byte_vec);
 
     if args.single_threaded {

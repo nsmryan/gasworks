@@ -10,7 +10,6 @@ use std::collections::BTreeMap;
 #[allow(unused_imports)]
 use std::option;
 
-use std::fmt;
 use std::cmp;
 
 use self::fnv::FnvHashMap;
@@ -89,6 +88,10 @@ pub struct LocLayout {
 impl LocLayout {
     pub fn new() -> LocLayout {
         LocLayout { loc_items: Vec::new() }
+    }
+
+    pub fn with_items(items: Vec<LocItem>) -> LocLayout {
+        LocLayout { loc_items: items }
     }
 }
 
@@ -295,7 +298,6 @@ impl Point {
 
 #[derive(Debug)]
 pub struct PacketStream<'a> {
-    loc_layout: LocLayout,
     bytes: &'a Vec<u8>,
     position: usize,
     num_bytes: usize,
@@ -303,9 +305,7 @@ pub struct PacketStream<'a> {
 
 impl<'a> PacketStream<'a> {
     pub fn new(packet: LayoutPacketDef, bytes: &'a Vec<u8>) -> PacketStream {
-        let loc_layout = packet.locate().unwrap();
-        PacketStream { loc_layout: loc_layout,
-                       bytes: bytes,
+        PacketStream { bytes: bytes,
                        position: 0,
                        num_bytes: packet.num_bytes() as usize,
         }
@@ -326,5 +326,35 @@ impl<'a> Iterator for PacketStream<'a> {
             None
         }
     }
+}
+
+
+// Definitions for limit monitoring
+type Persistence = usize;
+type Time = f64;
+
+enum LimitState {
+    Okay,
+    Exceeded(Time, Persistence),
+    Triggered(Time, Persistence),
+}
+
+enum Comparison {
+    LT,
+    GT,
+    EQ,
+    WITHIN,
+    WITHOUT,
+}
+
+struct LimitDef {
+    name: Name,
+    persistence: Persistence,
+    comparison: Comparison,
+}
+
+struct LimitInfo {
+    state: LimitState,
+    definition: LimitDef,
 }
 

@@ -13,6 +13,7 @@ use std::io::Write;
 
 
 use types::*;
+use layout::*;
 
 pub fn valuemap_csv(map : &ValueMap, writer : &mut csv::Writer<File>)
 {

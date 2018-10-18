@@ -12,7 +12,6 @@ use std::collections::HashMap;
 use std::iter::Iterator;
 #[allow(unused_imports)]
 use std::io::{Cursor, Read};
-use std::mem;
 use fnv::FnvHashMap;
 #[cfg(test)]
 use std::collections::BTreeMap;
@@ -29,6 +28,8 @@ use bytes::{Bytes, Buf};
 use bitreader::BitReader;
 
 use types::*;
+use prim::*;
+use layout::*;
 
 
 pub fn decode_to_map(layout : &Layout, bytes : &mut Cursor<&[u8]>) -> ValueMap {

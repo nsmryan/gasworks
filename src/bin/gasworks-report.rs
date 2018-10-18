@@ -4,6 +4,8 @@ extern crate gasworks;
 use std::mem;
 
 use gasworks::types::*;
+use gasworks::prim::*;
+use gasworks::layout::*;
 
 
 fn main()

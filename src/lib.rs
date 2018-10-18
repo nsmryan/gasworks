@@ -6,7 +6,6 @@ extern crate byteorder;
 extern crate ron;
 extern crate fnv;
 
-use std::collections::HashSet;
 #[allow(unused_imports)]
 use std::collections::HashMap;
 #[allow(unused_imports)]
@@ -28,6 +27,12 @@ use types::*;
 
 pub mod decode;
 use decode::*;
+
+pub mod prim;
+use prim::*;
+
+pub mod layout;
+use layout::*;
 
 pub mod csv;
 

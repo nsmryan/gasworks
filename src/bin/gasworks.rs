@@ -5,8 +5,6 @@ extern crate serde;
 extern crate gasworks;
 extern crate crossbeam_channel;
 extern crate crossbeam;
-//extern crate rayon;
-//extern crate futures;
 extern crate sorted_list;
 extern crate revord;
 
@@ -16,9 +14,6 @@ use std::fs::File;
 use std::vec::Vec;
 use std::iter::Filter;
 use std::collections::BinaryHeap;
-//use std::sync::{Arc};
-
-//use futures::future::*;
 
 #[macro_use] extern crate quicli;
 use quicli::prelude::*;
@@ -26,7 +21,6 @@ use quicli::prelude::*;
 use memmap::{ MmapOptions };
 
 use crossbeam_channel as channel;
-//use crossbeam_channel::{Receiver, Sender};
 
 use revord::RevOrd;
 
@@ -141,12 +135,6 @@ main!(|args: Cli, log_level : verbosity| {
               )
           );
     
-    // MMap file
-    //let file = File::open(args.infile)?;
-    //let mmap = unsafe { MmapOptions::new().map(&file)? };
-    //let length = mmap.len();
-    //let byte_vec = Vec::from_raw_parts(mmap.as_ptr(), length, length);
-
     let num_threads: usize = args.num_threads as usize;
 
     let packet : LayoutPacketDef = vn200_tlm;
@@ -263,8 +251,5 @@ main!(|args: Cli, log_level : verbosity| {
             send_line.send(None);
         });
     }
-
-    #[cfg(feature = "profile")]
-    flame::dump_html(&mut File::create("flame-gasworks.html").unwrap()).unwrap();
 });
 

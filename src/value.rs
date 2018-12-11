@@ -17,8 +17,8 @@ use self::fnv::FnvHashMap;
 #[allow(unused_imports)]
 use self::bytes::{Bytes, Buf};
 
-use prim::*;
-use layout::*;
+// use prim::*;
+// use layout::*;
 use types::*;
 
 

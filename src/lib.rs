@@ -37,14 +37,20 @@ use layout::*;
 pub mod value;
 use value::*;
 
+pub mod packet;
+use packet::*;
+
+pub mod loclayout;
+use loclayout::*;
+
 pub mod csv;
 
 
 /* Convienence functions for creating data definitions.  */
-pub fn item(name : &str, typ : Prim) -> Item {
-    Item::new(name.to_string(), typ)
-}
+// Creating Items
+pub fn item(name : &str, typ : Prim) -> Item { Item::new(name.to_string(), typ) }
 
+// Creating LayoutPacketDefs
 pub fn u8_be(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u8_be()))) }
 pub fn u8_le(name : &str)  -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u8_le()))) }
 pub fn u16_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Int(IntPrim::u16_be()))) }
@@ -68,6 +74,7 @@ pub fn f32_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Pri
 pub fn f64_be(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f64_be()))) }
 pub fn f64_le(name : &str) -> LayoutPacketDef { leaf(item(&name.to_string(), Prim::Float(FloatPrim::f64_le()))) }
 
+// Creating Values
 pub fn val_u8  (value : u8)  -> Value { Value::U8(value)  }
 pub fn val_u16 (value : u16) -> Value { Value::U16(value) }
 pub fn val_u32 (value : u32) -> Value { Value::U32(value) }
@@ -80,6 +87,7 @@ pub fn val_f32 (value : f32) -> Value { Value::F32(value) }
 pub fn val_f64 (value : f64) -> Value { Value::F64(value) }
 pub fn val_enum(name : Name, value : i64) -> Value { Value::Enum(name, value) }
 
+// Creating PacketDefs
 pub fn seq<T>(name : Name, packets : Vec<PacketDef<T>>) -> PacketDef<T> {
     PacketDef::Seq(name, packets)
 }
@@ -96,8 +104,7 @@ pub fn array_var<T>(name : Name, var_name : Name, packet : PacketDef<T>) -> Pack
     PacketDef::Array(name, ArrSize::Var(var_name), Box::new(packet))
 }
 
-pub fn identify_locpacket(packet : &LocPacketDef, bytes : &mut Cursor<&[u8]>) -> LocLayout
-{
+pub fn identify_locpacket(packet : &LocPacketDef, bytes : &mut Cursor<&[u8]>) -> LocLayout {
     let locs = Vec::new();
 
     let mut loc_layout = LocLayout{ loc_items : locs};
@@ -109,8 +116,7 @@ pub fn identify_locpacket(packet : &LocPacketDef, bytes : &mut Cursor<&[u8]>) ->
 
 fn identify_locpacket_helper(packet : &LocPacketDef, 
                              bytes : &mut Cursor<&[u8]>,
-                             loc_layout : &mut LocLayout) 
-{
+                             loc_layout : &mut LocLayout) {
     match packet {
         PacketDef::Seq(name, packets) => {
             for packet in packets {

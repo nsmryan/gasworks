@@ -14,7 +14,9 @@ use std::io::Write;
 
 use types::*;
 use layout::*;
+use loclayout::*;
 use value::*;
+use packet::*;
 
 pub fn valuemap_csv(map : &ValueMap, writer : &mut csv::Writer<File>)
 {

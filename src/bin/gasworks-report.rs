@@ -7,6 +7,8 @@ use gasworks::types::*;
 use gasworks::prim::*;
 use gasworks::layout::*;
 use gasworks::value::*;
+use gasworks::packet::*;
+use gasworks::loclayout::*;
 
 
 fn main()

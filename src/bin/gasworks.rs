@@ -25,10 +25,11 @@ use crossbeam_channel as channel;
 use revord::RevOrd;
 
 use gasworks::*;
-use gasworks::types::*;
 use gasworks::csv::*;
 use gasworks::decode::*;
-use gasworks::value::*;
+use gasworks::packet::*;
+use gasworks::layout::*;
+use gasworks::loclayout::*;
 
 
 #[derive(Debug, StructOpt)]
@@ -153,9 +154,11 @@ main!(|args: Cli, log_level : verbosity| {
 
     // filter items to parse, if provided on the command line
     if args.items.len() > 0 {
+        // collect provided names into a vector
         let names: Vec<String> =
             args.items.split(",").map(|st| st.trim().to_string()).collect();
 
+        // filter out elements that are not in the given list of items
         loc_layout.loc_items
                   .retain(|item| {
                       names.contains(&item.name.last().unwrap())
@@ -165,8 +168,10 @@ main!(|args: Cli, log_level : verbosity| {
     // Write CSV header
     loclayout_csvheader(&loc_layout, &mut writer);
 
+    // packet stream
     let packet_stream = PacketStream::new(packet, &byte_vec);
 
+    // if single threaded, decode reach packet and write to csv
     if args.single_threaded {
         let mut line = String::new();
 
@@ -179,6 +184,7 @@ main!(|args: Cli, log_level : verbosity| {
         }
     }
     else {
+        // if multi-threaded, spawn tasks for decoding and writing.
         let (send_line, receive_line) = channel::bounded(args.line_queue_depth as usize);
 
         let (pack_sender, pack_receiver) = channel::bounded(args.packet_queue_depth as usize);
@@ -217,6 +223,7 @@ main!(|args: Cli, log_level : verbosity| {
                             // process stored lines
                             while to_write.len() > 0 {
                                 let current_index = get_current_index(&to_write);
+                                // if we have the line we are look for, write to file
                                 if current_index == next_index {
                                     let (_, line) = to_write.pop().unwrap();
                                     writer.write(line.as_bytes()).unwrap();

@@ -10,16 +10,14 @@ use std::collections::BTreeMap;
 #[allow(unused_imports)]
 use std::option;
 
-use std::fmt;
 use std::cmp;
-
-use self::fnv::FnvHashMap;
 
 #[allow(unused_imports)]
 use self::bytes::{Bytes, Buf};
 
 use prim::*;
 use types::*;
+use loclayout::*;
 
 
 #[derive(Eq, PartialEq, Debug, Deserialize, Serialize)]

@@ -18,6 +18,33 @@ use self::bytes::{Bytes, Buf};
 use types::{NumBytes, Name};
 
 
+#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize)]
+pub struct Item {
+    pub name: Name,
+    pub typ: Prim,
+}
+
+impl Clone for Item {
+    fn clone(&self) -> Item {
+        Item {name: self.name.clone(),
+             typ: self.typ.clone(),
+        }
+    }
+}
+
+impl NumBytes for Item {
+  fn num_bytes(&self) -> u64 {
+    self.typ.num_bytes()
+  }
+}
+
+impl Item {
+  pub fn new(name: Name, typ: Prim) -> Self {
+    Item{name: name, typ: typ}
+  }
+}
+
+
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Deserialize, Serialize)]
 pub enum Endianness {
     BigEndian,
